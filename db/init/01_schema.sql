@@ -1,6 +1,9 @@
 -- text2sql-guard demo schema (PostgreSQL 16). All data is synthetic.
 -- Loaded by the postgres container on first start. Seed data comes from db/seed.py.
 
+-- Tables must be owned by the non-superuser t2s_owner (created in 00_roles.sql).
+SET ROLE t2s_owner;
+
 CREATE TABLE users (
     id            integer PRIMARY KEY,
     full_name     text NOT NULL,

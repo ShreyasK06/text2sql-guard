@@ -1,0 +1,27 @@
+# Local demo database (synthetic data only). Start with: python scripts/db.py up
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: t2s-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: t2s
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${T2S_SUPERUSER_PASSWORD:-t2s_local_dev_only}
+    ports:
+      - "54329:5432"
+    volumes:
+      - t2s_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    mem_limit: 512m
+    healthcheck:
+      # -h 127.0.0.1 so the check only passes once the real server (not the init-time
+      # socket-only server) is listening.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d t2s"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  t2s_pgdata:
