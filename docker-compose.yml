@@ -1,7 +1,7 @@
 # Local demo database (synthetic data only). Start with: python scripts/db.py up
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-bookworm
     container_name: t2s-postgres
     restart: unless-stopped
     environment:
