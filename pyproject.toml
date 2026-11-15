@@ -1,0 +1,13 @@
+[project]
+name = "text2sql-guard"
+version = "0.1.0"
+description = "Text-to-SQL with a measured, layered guardrail pipeline"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "db: needs the docker-compose PostgreSQL database (skipped automatically when unreachable)",
+]

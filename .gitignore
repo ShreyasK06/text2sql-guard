@@ -1,0 +1,21 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+!.env.example
+audit_logs/
+*.log
+# data dumps and downloaded benchmarks
+data/
+*.dump
+*.sqlite
+*.db
+eval/benchmarks/cache/
+# raw per-item run outputs (summaries and figures are committed)
+eval/results/raw/
+.streamlit/secrets.toml
+.idea/
+.vscode/

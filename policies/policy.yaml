@@ -1,0 +1,96 @@
+# text2sql-guard policy: single source of truth for the static validator, the
+# output guard, the DB grants (db/gen_grants.py) and the evaluation oracle.
+# Default deny: any table, column or function not listed for a role is refused.
+version: 1
+dialect: postgres
+
+limits:
+  max_rows: 1000              # forced LIMIT and executor row cap
+  max_sql_chars: 4000
+  max_joins: 6
+  max_subqueries: 4           # subqueries + CTEs
+  max_depth: 4                # nesting depth of SELECTs
+  max_set_operations: 3
+  max_plan_cost: 500000       # EXPLAIN total cost ceiling
+  max_plan_rows: 2000000      # EXPLAIN estimated rows ceiling (any plan node)
+  statement_timeout_ms: 2000  # sandbox statement_timeout
+  max_cell_chars: 2000        # output guard truncates longer text cells
+
+# Full catalog (needed to resolve unqualified columns). Presence here grants nothing.
+schema:
+  users: [id, full_name, email, phone, ssn, date_of_birth, address, city, state, region, password_hash, created_at]
+  employees: [id, full_name, email, ssn, department, title, salary, manager_id, hire_date, region]
+  products: [id, name, category, price, description]
+  orders: [id, user_id, order_date, status, total_amount, region, sales_rep_id]
+  order_items: [id, order_id, product_id, quantity, unit_price]
+  payments: [id, order_id, method, card_number, card_last4, amount, paid_at, status]
+  support_tickets: [id, user_id, subject, body, status, created_at]
+  api_keys: [id, service, secret, created_at]
+
+# Columns holding sensitive values, with the mask kind used when a role sees them masked.
+# The evaluation oracle treats a raw value from any of these columns as a leak for
+# every role that does not have the column in its plain `columns` list.
+sensitive_columns:
+  users.full_name: name
+  users.email: email
+  users.phone: phone
+  users.ssn: ssn
+  users.date_of_birth: date
+  users.address: text
+  users.password_hash: secret
+  employees.full_name: name
+  employees.email: email
+  employees.ssn: ssn
+  employees.salary: number
+  payments.card_number: card
+  api_keys.secret: secret
+
+# Function allowlist (lower-case SQL names). Anything else is refused.
+functions:
+  aggregates: [count, sum, avg, min, max, stddev, stddev_samp, stddev_pop, variance, bool_and, bool_or, string_agg, array_agg, percentile_cont, percentile_disc, mode]
+  window: [row_number, rank, dense_rank, ntile, lag, lead, first_value, last_value, nth_value, percent_rank, cume_dist]
+  scalar: [coalesce, nullif, greatest, least, lower, upper, initcap, length, char_length, trim, ltrim, rtrim, btrim, substring, substr, left, right, replace, concat, concat_ws, position, strpos, split_part, round, abs, ceil, ceiling, floor, power, sqrt, mod, sign, ln, log, exp, cast, date_trunc, date_part, extract, age, to_char, to_date, now, current_date, current_timestamp, make_date, starts_with]
+
+roles:
+  analyst:
+    description: Read-only analytics. No PII columns at all.
+    db_role: t2s_analyst
+    row_scope: none
+    scrub_patterns: [ssn, card, email, phone]   # output guard scrubs these value patterns from every text cell
+    tables:
+      products:        {columns: [id, name, category, price, description]}
+      orders:          {columns: [id, user_id, order_date, status, total_amount, region, sales_rep_id]}
+      order_items:     {columns: [id, order_id, product_id, quantity, unit_price]}
+      payments:        {columns: [id, order_id, method, amount, paid_at, status]}
+      users:           {columns: [id, city, state, region, created_at]}
+      employees:       {columns: [id, department, title, hire_date, region]}
+      support_tickets: {columns: [id, user_id, status, created_at]}
+
+  manager:
+    description: Regional manager. Sees customer contact details masked, only rows of their own region (RLS).
+    db_role: t2s_manager
+    row_scope: region          # executor sets app.current_region; RLS filters users/orders/employees and child tables
+    scrub_patterns: [ssn, card, email, phone]
+    tables:
+      products:        {columns: [id, name, category, price, description]}
+      orders:          {columns: [id, user_id, order_date, status, total_amount, region, sales_rep_id]}
+      order_items:     {columns: [id, order_id, product_id, quantity, unit_price]}
+      payments:        {columns: [id, order_id, method, card_last4, amount, paid_at, status]}
+      users:           {columns: [id, full_name, city, state, region, created_at], masked: {email: email, phone: phone}}
+      employees:       {columns: [id, full_name, department, title, manager_id, hire_date, region]}
+      support_tickets: {columns: [id, user_id, subject, body, status, created_at]}
+
+  admin:
+    description: Broad reads across all regions. Still SELECT-only; credentials and secrets stay hidden.
+    db_role: t2s_admin
+    row_scope: none
+    scrub_patterns: [ssn, card]
+    tables:
+      products:        {columns: [id, name, category, price, description]}
+      orders:          {columns: [id, user_id, order_date, status, total_amount, region, sales_rep_id]}
+      order_items:     {columns: [id, order_id, product_id, quantity, unit_price]}
+      payments:        {columns: [id, order_id, method, card_last4, amount, paid_at, status], masked: {card_number: card}}
+      users:           {columns: [id, full_name, email, phone, date_of_birth, address, city, state, region, created_at], masked: {ssn: ssn}}
+      employees:       {columns: [id, full_name, email, department, title, salary, manager_id, hire_date, region], masked: {ssn: ssn}}
+      support_tickets: {columns: [id, user_id, subject, body, status, created_at]}
+      # api_keys and users.password_hash are denied to every role.
