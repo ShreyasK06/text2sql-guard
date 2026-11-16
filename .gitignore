@@ -23,3 +23,7 @@ eval/results/raw/
 # local agent tooling
 .claude-flow/
 .swarm/
+
+# local agent tooling
+.claude-flow/
+.swarm/
