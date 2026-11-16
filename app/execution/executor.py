@@ -235,16 +235,18 @@ class PostgresExecutor:
                 last_cols: list[str] = []
                 last_rows: list[tuple] = []
                 truncated = False
+                fetched_n = 0
                 while True:
                     if cur.description:
                         last_cols = [d.name for d in cur.description]
                         got = cur.fetchmany(cap + 1)
+                        fetched_n = len(got)
                         truncated = len(got) > cap
                         last_rows = [tuple(_plain(v) for v in r) for r in got[:cap]]
                     if not cur.nextset():
                         break
             elapsed = (time.perf_counter() - t0) * 1000
-            return ExecResult(ok=True, columns=last_cols, rows=last_rows, row_count=len(last_rows),
+            return ExecResult(ok=True, columns=last_cols, rows=last_rows, row_count=fetched_n,
                               truncated=truncated, elapsed_ms=elapsed, sandboxed=False)
         except Exception as exc:
             elapsed = (time.perf_counter() - t0) * 1000
