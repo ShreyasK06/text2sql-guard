@@ -67,3 +67,12 @@ class PolicyResponse(BaseModel):
     plain_columns: dict[str, list[str]]
     masked_columns: dict[str, dict[str, str]]
     visible_tables: list[str]
+
+
+class CatalogResponse(BaseModel):
+    roles: list[dict[str, str]]
+    schema_: dict[str, list[str]] = Field(alias="schema")
+    sensitive_columns: dict[str, str]
+    limits: dict[str, int]
+
+    model_config = {"populate_by_name": True}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About - text2sql-guard</title>
+<meta name="description" content="A text-to-SQL service for PostgreSQL with a layered guardrail pipeline: default deny, fail closed, enforced in code and database permissions. What it guarantees and what it does not.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Newsreader:opsz,wght@6..72,500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="site">
+<a class="skip" href="#top">Skip to content</a>
+<header class="topbar">
+  <a class="wordmark" href="about.html" aria-label="text2sql-guard, about">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="currentColor"/><path d="M6 8h12M6 12h12M6 16h7" stroke="var(--paper)" stroke-width="2" stroke-linecap="round"/></svg>
+    text2sql-guard
+  </a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html#/console">Console</a>
+    <a href="index.html#/audit">Audit log</a>
+    <a href="index.html#/policy">Policy</a>
+    <a href="index.html#/safety">Safety and results</a>
+    <a href="about.html" aria-current="page">About</a>
+  </nav>
+</header>
+
+<main id="top" tabindex="-1" style="max-width:none;padding:0">
+  <section class="hero">
+    <div class="wrap">
+      <h1>Ask the database anything your role may see.</h1>
+      <p class="lead">text2sql-guard turns a question into SQL, then runs it through eight stages before a read-only database user returns masked, role-scoped rows. Six of those stages can refuse it, and each refusal says why.</p>
+      <div class="actions">
+        <a class="btn" href="index.html#/console">Open the console</a>
+        <a class="btn ghost" href="demo.html">Watch the recorded demo</a>
+      </div>
+      <div class="hero-trace" id="hero-trace" aria-live="polite">
+        <p class="cap">A real response from the recorded demo: an analyst asks the system to delete all orders.</p>
+        <noscript><p>Open the <a href="demo.html">recorded demo</a> to see it.</p></noscript>
+      </div>
+    </div>
+  </section>
+
+  <section class="band dark" aria-labelledby="h-stages">
+    <div class="wrap">
+      <h2 id="h-stages">Eight stages. Six can say no.</h2>
+      <p class="intro">Defense in depth means no single check carries the whole load. The input guard is pattern based and can be paraphrased around, so the allowlist, the AST rules, the cost gate and the database itself each have to hold on their own.</p>
+      <ol class="pipeline">
+        <li><strong>Input guard</strong><span>Screens the question for destructive intent, override phrasing and requests for data your role cannot read.</span><em class="kind" style="font-style:normal">Can refuse</em></li>
+        <li class="model"><strong>Schema retrieval</strong><span>The model is shown only the tables and columns your role may see.</span><em class="kind" style="font-style:normal">Narrows the prompt</em></li>
+        <li class="model"><strong>SQL generation</strong><span>The model writes SQL. Here that is a deterministic mock, not a live LLM.</span><em class="kind" style="font-style:normal">Never trusted</em></li>
+        <li><strong>Allowlist</strong><span>Every table, column and function must be listed for the role. Default deny.</span><em class="kind" style="font-style:normal">Can refuse</em></li>
+        <li><strong>AST rules</strong><span>SELECT only, one statement, forced LIMIT, caps on joins and nesting.</span><em class="kind" style="font-style:normal">Can refuse</em></li>
+        <li><strong>EXPLAIN cost gate</strong><span>Postgres plans the query without running it. Expensive plans are refused.</span><em class="kind" style="font-style:normal">Can refuse</em></li>
+        <li><strong>Sandboxed execution</strong><span>A read-only database user with column grants, row-level security and a timeout.</span><em class="kind" style="font-style:normal">Can refuse</em></li>
+        <li><strong>Output guard</strong><span>Masks sensitive columns, scrubs PII patterns, caps cell size.</span><em class="kind" style="font-style:normal">Rewrites results</em></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="h-closed">
+    <div class="wrap">
+      <h2 id="h-closed">When a stage cannot decide, the answer is no.</h2>
+      <div class="split">
+        <div>
+          <h3>Fail closed</h3>
+          <p>SQL that cannot be parsed is refused, not guessed at. If the EXPLAIN step fails, that is a block. A role limited to one region that arrives without a region is refused.</p>
+          <p>Every block carries a rule id and a plain-language reason, so a refusal can be read, audited and argued with.</p>
+        </div>
+        <div>
+          <h3>Allowlist over blocklist</h3>
+          <p>Nothing is permitted because it was not forbidden. A table, column or function that is not listed for a role does not exist for it.</p>
+          <p>One file, <code>policies/policy.yaml</code>, drives the validator, the output guard and the database grants, so the rules the code enforces and the rules the database enforces cannot drift apart. Enforcement lives in code and in database permissions, never in the prompt.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band sunk" aria-labelledby="h-truth">
+    <div class="wrap">
+      <h2 id="h-truth">What it does, and what it does not.</h2>
+      <div class="truth">
+        <div class="yes">
+          <h3>What it does</h3>
+          <ul>
+            <li>Applies the role's allowlist and masks sensitive columns before anything is displayed.</li>
+            <li>Restricts a regional manager to one region with row-level security in the database.</li>
+            <li>Refuses anything that is not a single, bounded SELECT, and runs the rest as a read-only user.</li>
+            <li>Logs every request with the stage that decided it.</li>
+            <li>Is covered by an offline test suite that includes tests against a real PostgreSQL 16.</li>
+          </ul>
+        </div>
+        <div class="no">
+          <h3>What it does not</h3>
+          <ul>
+            <li>It has no measured attack block rate. The evaluation holds no attack items.</li>
+            <li>It has never been run against a live language model. Only the mock provider was used.</li>
+            <li>It has no authentication. Role and region are asserted by the caller in this demo.</li>
+            <li>Its input guard is pattern based, so paraphrased intent can get past that stage.</li>
+            <li>Masking is column and pattern based, so sensitive values inside free text are only partly covered.</li>
+            <li>It sometimes refuses a legitimate query. See the numbers below.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="h-num">
+    <div class="wrap">
+      <h2 id="h-num">The numbers we have, and the one we do not.</h2>
+      <p class="intro">These are read from the files in <code>eval/results</code>. They measure the cost of the guards on legitimate questions. They say nothing yet about how well the guards stop an attacker.</p>
+      <div class="stat-row" id="stats">
+        <div class="stat"><span class="big" id="n-held">&nbsp;</span><p id="t-held">Held-out benign queries wrongly refused. See the Safety page.</p></div>
+        <div class="stat"><span class="big" id="n-dev">&nbsp;</span><p id="t-dev">Dev benign queries wrongly refused.</p></div>
+        <div class="stat"><span class="big" id="n-ms">&nbsp;</span><p id="t-ms">Median time the guards add per query.</p></div>
+      </div>
+      <p class="intro"><a href="index.html#/safety">Read the full results, including the three queries that were wrongly refused.</a></p>
+    </div>
+  </section>
+
+  <section class="band dark" aria-labelledby="h-run">
+    <div class="wrap">
+      <h2 id="h-run">Run it on your own machine.</h2>
+      <p class="intro">Python 3.11 or newer, and Docker for the demo PostgreSQL. The default provider is a deterministic mock, so no API key is needed.</p>
+      <div class="codeblock" style="background:color-mix(in srgb, var(--field-ink) 9%, var(--field));color:var(--field-ink)"><pre><code>python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\python scripts\db.py up
+.venv\Scripts\python -m uvicorn app.api.main:app
+# then open http://127.0.0.1:8000</code></pre></div>
+      <p class="intro">Without Docker, the <a href="demo.html">recorded demo</a> works from any static host.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="sitefoot">
+  <div class="wrap">
+    <span class="name">text2sql-guard</span>
+    <p>MIT licensed. Source at <a href="https://github.com/ShreyasK06/text2sql-guard">github.com/ShreyasK06/text2sql-guard</a>. All data is synthetic.</p>
+  </div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+(function () {
+  "use strict";
+  const T = window.T2S;
+  const pct = (x) => (x * 100).toFixed(1) + "%";
+  fetch("data/demo.json").then((r) => r.json()).then((d) => {
+    const c = d.cases.find((x) => x.id === "delete");
+    const host = document.getElementById("hero-trace");
+    host.insertAdjacentHTML("beforeend", `<div class="reveal"><p style="margin-bottom:12px"><b>Request:</b> "${T.esc(c.request.question)}" as <b>${T.esc(c.request.role)}</b></p>${T.traceHTML(c.response, c.request)}</div>`);
+  }).catch(() => {});
+  fetch("data/results.json").then((r) => r.json()).then((R) => {
+    const h = R.splits.heldout, d = R.splits.dev;
+    const set = (id, v) => { document.getElementById(id).textContent = v; };
+    set("n-held", pct(h.false_block.rate));
+    set("t-held", `Held-out benign queries wrongly refused: ${h.false_blocks.length} of ${h.n_benign}, 95% interval ${pct(h.false_block.ci_lo)} to ${pct(h.false_block.ci_hi)}.`);
+    set("n-dev", pct(d.false_block.rate));
+    set("t-dev", `Dev benign queries wrongly refused: ${d.false_blocks.length} of ${d.n_benign}. Used while tuning, so optimistic.`);
+    set("n-ms", h.end_to_end.median_overhead_ms + " ms");
+    set("t-ms", `Median time the guards add per query on the held-out split, against ${h.end_to_end.none_median_ms.toFixed(1)} ms unguarded. No model latency included.`);
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>

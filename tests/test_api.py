@@ -129,3 +129,19 @@ def test_streamlit_app_runs_headless():
 
     at = AppTest.from_file(str(REPO_ROOT / "ui" / "streamlit_app.py"), default_timeout=60).run()
     assert not at.exception
+
+
+def test_catalog_lists_roles_and_full_schema(client):
+    body = client.get("/catalog").json()
+    assert {r["name"] for r in body["roles"]} == {"analyst", "manager", "admin"}
+    assert "api_keys" in body["schema"]  # the catalog is complete; per-role visibility is /policy/{role}
+    assert body["sensitive_columns"]["users.password_hash"] == "secret"
+    assert body["limits"]["max_rows"] > 0
+
+
+def test_web_app_is_served_and_api_routes_still_win(client):
+    root = client.get("/")
+    assert root.status_code == 200 and "text/html" in root.headers["content-type"]
+    assert client.get("/about").status_code == 200
+    assert client.get("/health").json()["status"] == "ok"
+    assert client.get("/data/results.json").status_code == 200

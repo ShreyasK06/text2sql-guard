@@ -7,6 +7,7 @@ a verified token), never from client-supplied fields.
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import decimal
 import os
@@ -14,9 +15,13 @@ import uuid
 from functools import lru_cache
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from pathlib import Path
 
-from app.api.schemas import HealthResponse, PolicyResponse, QueryRequest, QueryResponse
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from app.api.schemas import CatalogResponse, HealthResponse, PolicyResponse, QueryRequest, QueryResponse
 from app.types import GuardConfig, PipelineResult
 
 app = FastAPI(title="text2sql-guard", version="0.1.0")
@@ -113,6 +118,21 @@ def policy_for_role(role: str, pipeline=Depends(get_pipeline)) -> dict[str, Any]
     }
 
 
+@app.get("/catalog", response_model=CatalogResponse)
+def catalog(pipeline=Depends(get_pipeline)) -> dict[str, Any]:
+    """Full schema catalog plus the role list, so a client can show what each role does NOT see."""
+    pol = pipeline.policy
+    return {
+        "roles": [
+            {"name": r.name, "description": r.description, "row_scope": r.row_scope}
+            for r in pol.roles.values()
+        ],
+        "schema": {t: list(cols) for t, cols in pol.schema.items()},
+        "sensitive_columns": dict(pol.sensitive_columns),
+        "limits": dataclasses.asdict(pol.limits),
+    }
+
+
 @app.post("/query", response_model=QueryResponse)
 def query(req: QueryRequest, pipeline=Depends(get_pipeline)) -> dict[str, Any]:
     if req.layers is not None and os.environ.get("T2S_ALLOW_LAYER_OVERRIDE") != "1":
@@ -136,3 +156,16 @@ def audit(n: int = 50, pipeline=Depends(get_pipeline)) -> list[dict[str, Any]]:
     if log is None:
         return []
     return jsonable(log.tail(n))
+
+
+# ---------------------------------------------------------------- web app
+# Static front end (no build step). Registered last so every API route above wins.
+WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
+
+if WEB_DIR.is_dir():
+
+    @app.get("/about", include_in_schema=False)
+    def about_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "about.html")
+
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
