@@ -267,6 +267,7 @@ _DESTRUCTIVE = [
         _LEAD + r"(?:remove|clear|empty|reset|modify|edit|overwrite|alter|rename)\s+" + _DET + r"{0,3}"
         r"(?:tables?|databases?|db|schema|columns?|indexes|index|permissions?|privileges|passwords?)\b" + _NEG_TAIL
     ),
+    re.compile(_LEAD + r"(?:alter|rename)\s+" + _DET + r"{0,2}(?:\w+\s+){0,2}(?:tables?|columns?|schema|index|indexes)\b"),
     re.compile(_LEAD + r"(?:remove|clear|empty|wipe)\s+(?:out\s+)?(?:all|every|the\s+entire|the\s+whole)\s+(?:the\s+)?(?:data|rows|records|entries|contents)\s+(?:from|in|of)\s+(?:the\s+)?" + _TBL_WORDS + r"\b"),
     re.compile(_LEAD + r"(?:empty|clear|reset|flush)\s+(?:out\s+)?(?:the\s+|all\s+|my\s+|our\s+)?(?:\w+\s+)?(?:table|tables|database)\b"),
     re.compile(_LEAD + r"insert\s+(?:into|a\s+new|new|a|an|some|\d+|the\s+following|these|rows?|records?|values)\b"),
