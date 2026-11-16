@@ -113,8 +113,11 @@ def _draw_panel(ax, df: pd.DataFrame, split: str) -> None:
     ax.set_yticks([i + 0.5 for i in range(len(ATTACK_ROWS))] + [nrow - 0.5])
     ax.set_yticklabels(ylabels + [f"benign: false-block rate (n={n_ben})"], fontsize=10)
     ax.set_xticks([j + 0.5 for j in range(ncol)])
-    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_xticklabels(labels, fontsize=7)
     ax.tick_params(length=0)
+    if sum(n_of.values()) == 0:
+        ax.text(ncol / 2, len(ATTACK_ROWS) / 2, "NOT MEASURED: this split contains no attack items yet",
+                ha="center", va="center", fontsize=12, color="#8a1c1c")
     for s in ax.spines.values():
         s.set_visible(False)
     for gtitle, a, b in group_spans:

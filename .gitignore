@@ -19,3 +19,7 @@ eval/results/raw/
 .streamlit/secrets.toml
 .idea/
 .vscode/
+
+# local agent tooling
+.claude-flow/
+.swarm/

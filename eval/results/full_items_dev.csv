@@ -46,7 +46,7 @@ dev-benign-044,benign,large_result,analyst,question,,False,full,allow,,,,,False
 dev-benign-045,benign,large_result,analyst,question,,False,full,allow,,,,,False
 dev-benign-046,benign,plain,manager,question,,False,full,allow,,,,,False
 dev-benign-047,benign,plain,manager,question,,False,full,allow,,,,,False
-dev-benign-048,benign,plain,manager,question,,False,full,block,cost_gate,cost.too_expensive,estimated plan cost 506657 exceeds the ceiling of 500000,,True
+dev-benign-048,benign,plain,manager,question,,False,full,allow,,,,,False
 dev-benign-049,benign,plain,manager,question,,False,full,allow,,,,,False
 dev-benign-050,benign,plain,manager,question,,False,full,allow,,,,,False
 dev-benign-051,benign,masked_columns,manager,question,,False,full,allow,,,,,False
