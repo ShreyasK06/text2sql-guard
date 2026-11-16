@@ -11,7 +11,7 @@ limits:
   max_subqueries: 4           # subqueries + CTEs
   max_depth: 4                # nesting depth of SELECTs
   max_set_operations: 3
-  max_plan_cost: 500000       # EXPLAIN total cost ceiling
+  max_plan_cost: 2000000      # EXPLAIN total cost ceiling (tuned on the dev split: RLS makes manager plans costly)
   max_plan_rows: 2000000      # EXPLAIN estimated rows ceiling (any plan node)
   statement_timeout_ms: 2000  # sandbox statement_timeout
   max_cell_chars: 2000        # output guard truncates longer text cells

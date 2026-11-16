@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import decimal
+import os
 import uuid
 from functools import lru_cache
 from typing import Any
@@ -114,6 +115,9 @@ def policy_for_role(role: str, pipeline=Depends(get_pipeline)) -> dict[str, Any]
 
 @app.post("/query", response_model=QueryResponse)
 def query(req: QueryRequest, pipeline=Depends(get_pipeline)) -> dict[str, Any]:
+    if req.layers is not None and os.environ.get("T2S_ALLOW_LAYER_OVERRIDE") != "1":
+        # Switching guard layers off is an ablation/demo feature and must never be caller-controlled by default.
+        raise HTTPException(status_code=403, detail="layer override is disabled (set T2S_ALLOW_LAYER_OVERRIDE=1)")
     config = GuardConfig.all() if req.layers is None else GuardConfig.only(*req.layers)
     res = pipeline.run(
         req.question,
