@@ -22,8 +22,10 @@ class Settings:
     role_password: str          # shared by t2s_analyst / t2s_manager / t2s_admin in the dev database
     watchdog_ms: int            # hard cap the harness puts on UNSANDBOXED execution
     unsandboxed_row_cap: int    # memory safety cap when the sandbox layer is off
-    llm_provider: str           # mock | anthropic | gemini
+    llm_provider: str           # mock | nvidia | openai_compatible | anthropic | gemini
     llm_model: str | None
+    llm_base_url: str | None    # openai_compatible (and an optional nvidia override)
+    rate_limit_per_min: int     # in-process cap on LLM requests per minute
     max_retries: int
     audit_path: Path
     policy_path: Path
@@ -52,8 +54,11 @@ def get_settings() -> Settings:
         role_password=env("T2S_ROLE_PASSWORD", _DEV_PASSWORD),
         watchdog_ms=int(env("T2S_WATCHDOG_MS", "3000")),
         unsandboxed_row_cap=int(env("T2S_UNSANDBOXED_ROW_CAP", "20000")),
-        llm_provider=env("T2S_LLM_PROVIDER", "mock"),
-        llm_model=env("T2S_LLM_MODEL") or None,
+        # LLM_PROVIDER is the documented name; T2S_LLM_PROVIDER / T2S_LLM_MODEL still work.
+        llm_provider=(env("LLM_PROVIDER") or env("T2S_LLM_PROVIDER") or "mock").strip().lower(),
+        llm_model=env("LLM_MODEL") or env("T2S_LLM_MODEL") or None,
+        llm_base_url=env("LLM_BASE_URL") or None,
+        rate_limit_per_min=max(1, int(env("LLM_RATE_LIMIT_PER_MIN", "30"))),
         max_retries=int(env("T2S_MAX_RETRIES", "2")),
         audit_path=Path(env("T2S_AUDIT_PATH", str(REPO_ROOT / "audit_logs" / "audit.jsonl"))),
         policy_path=Path(env("T2S_POLICY_PATH", str(DEFAULT_POLICY_PATH))),

@@ -13,7 +13,44 @@ import httpx
 
 
 class ProviderError(Exception):
-    pass
+    """Base class for LLM provider failures. `code` is a stable machine-readable tag for the API and UI."""
+
+    code = "provider_error"
+    retry_after: float | None = None
+
+    def to_dict(self) -> dict:
+        out: dict = {"code": self.code, "message": str(self)}
+        if self.retry_after is not None:
+            out["retry_after_s"] = round(self.retry_after, 1)
+        return out
+
+
+class AuthError(ProviderError):
+    code = "bad_key"
+
+
+class ModelNotFoundError(ProviderError):
+    code = "bad_model"
+
+
+class ModelNotConfiguredError(ProviderError):
+    code = "no_model"
+
+
+class RateLimitedError(ProviderError):
+    code = "rate_limited"
+
+    def __init__(self, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class ProviderNetworkError(ProviderError):
+    code = "network"
+
+
+class ProviderServerError(ProviderError):
+    code = "server_error"
 
 
 class LLMProvider(Protocol):
@@ -202,12 +239,22 @@ class GeminiProvider:
             raise ProviderError("gemini returned a malformed response") from exc
 
 
+_SHARED: dict[tuple, LLMProvider] = {}
+
+
 def get_provider(settings) -> LLMProvider:
+    """Build the provider named by settings.llm_provider. Keys are read from the environment only."""
     kind = (settings.llm_provider or "mock").lower()
     if kind == "mock":
         return MockProvider()
+    if kind in {"nvidia", "openai_compatible"}:
+        from app.generation.openai_compat import provider_from_env
+
+        return provider_from_env(kind, settings, _SHARED)
     if kind not in {"anthropic", "gemini"}:
-        raise ProviderError(f"unknown T2S_LLM_PROVIDER: {kind!r} (use mock, anthropic or gemini)")
+        raise ProviderError(
+            f"unknown LLM_PROVIDER: {kind!r} (use mock, nvidia, openai_compatible, anthropic or gemini)"
+        )
     key_var = "ANTHROPIC_API_KEY" if kind == "anthropic" else "GEMINI_API_KEY"
     key = os.environ.get(key_var)
     if not key:
