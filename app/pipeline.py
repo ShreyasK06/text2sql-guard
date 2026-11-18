@@ -1,10 +1,12 @@
 """Pipeline orchestration: guards in order, self-correction loop, layer toggles, audit."""
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from typing import Any
 
+from app.generation.provider import ProviderError
 from app.guards.cost_gate import check_cost
 from app.guards.input_guard import check_input
 from app.guards.output_guard import guard_output
@@ -17,12 +19,14 @@ _RETRYABLE_EXEC_ERRORS = {"syntax", "other"}
 
 
 class Pipeline:
-    def __init__(self, policy: Policy, executor=None, provider=None, audit=None, max_retries: int = 2):
+    def __init__(self, policy: Policy, executor=None, provider=None, audit=None, max_retries: int = 2,
+                 self_check_enabled: bool = True):
         self.policy = policy
         self.executor = executor
         self.provider = provider
         self.audit = audit
         self.max_retries = max_retries
+        self.self_check_enabled = self_check_enabled
 
     # ------------------------------------------------------------------ public
     def run(
@@ -46,6 +50,13 @@ class Pipeline:
         )
         try:
             self._run(res, question, role_policy, region, sql_override, config)
+        except ProviderError as exc:  # the model could not be reached: nothing ran, no data returned
+            res.decision = "error"
+            res.blocked_by = "internal"
+            res.rule_id = f"llm.{exc.code}"
+            res.reason = str(exc)
+            res.llm_error = exc.to_dict()
+            res.columns, res.rows = [], []
         except Exception as exc:  # fail closed: an internal error never returns data
             res.decision = "error"
             res.blocked_by = res.blocked_by or "internal"
@@ -126,7 +137,8 @@ class Pipeline:
             # reset per-attempt state before retrying
             res.decision, res.blocked_by, res.rule_id, res.reason = "error", None, None, ""
 
-        if res.decision == "allow" and sql_override is None and self.provider is not None:
+        if (res.decision == "allow" and sql_override is None and self.provider is not None
+                and self.self_check_enabled):
             from app.generation.verifier import self_check
 
             try:
@@ -244,7 +256,10 @@ def build_pipeline(settings=None, *, with_audit: bool = True) -> Pipeline:
 
     settings = settings or get_settings()
     policy = load_policy(settings.policy_path)
+    # The self-check doubles the LLM calls per question; on the shared free tier it is opt-in.
+    default_check = "0" if settings.llm_provider in {"nvidia", "openai_compatible"} else "1"
     return Pipeline(
+        self_check_enabled=os.environ.get("LLM_SELF_CHECK", default_check) == "1",
         policy=policy,
         executor=PostgresExecutor(settings, policy.limits),
         provider=get_provider(settings),

@@ -48,6 +48,7 @@ class QueryResponse(BaseModel):
     retries: int = 0
     correction_log: list[dict[str, Any]] = []
     self_check: dict[str, Any] | None = None
+    llm_error: dict[str, Any] | None = None
     latency_ms: float = 0.0
     layer_latency_ms: dict[str, float] = {}
     guard_results: list[dict[str, Any]] = []

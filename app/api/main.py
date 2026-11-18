@@ -82,6 +82,7 @@ def _to_response(res: PipelineResult) -> dict[str, Any]:
         "retries": res.retries,
         "correction_log": jsonable(res.correction_log),
         "self_check": jsonable(res.self_check),
+        "llm_error": jsonable(res.llm_error),
         "latency_ms": round(res.latency_ms, 3),
         "layer_latency_ms": {k: round(v, 3) for k, v in res.layer_latency_ms.items()},
         "guard_results": jsonable([g.to_dict() for g in res.guard_results]),
@@ -107,6 +108,33 @@ def health() -> dict[str, Any]:
     from app.config import get_settings
 
     return {"status": "ok", "db": _db_up(), "provider": get_settings().llm_provider}
+
+
+def get_llm_provider():
+    """The configured provider (shared with the pipeline), or None when it cannot be built. Tests override this."""
+    from app.config import get_settings
+    from app.generation.provider import ProviderError, get_provider
+
+    try:
+        return get_provider(get_settings())
+    except ProviderError:
+        return None
+
+
+@app.get("/llm/status")
+def llm_status_endpoint() -> dict[str, Any]:
+    from app.config import get_settings
+    from app.generation.llm_info import llm_status
+
+    return llm_status(get_settings())
+
+
+@app.get("/llm/models")
+def llm_models_endpoint(provider=Depends(get_llm_provider)) -> dict[str, Any]:
+    from app.config import get_settings
+    from app.generation.llm_info import llm_models, llm_status
+
+    return llm_models(provider, llm_status(get_settings()))
 
 
 @app.get("/policy/{role}", response_model=PolicyResponse)

@@ -146,6 +146,7 @@ class PipelineResult:
     retries: int = 0
     correction_log: list[dict[str, Any]] = field(default_factory=list)
     self_check: dict[str, Any] | None = None
+    llm_error: dict[str, Any] | None = None   # structured provider failure, e.g. {"code": "rate_limited", "retry_after_s": 12}
     latency_ms: float = 0.0
     layer_latency_ms: dict[str, float] = field(default_factory=dict)
     config: str = "full"
