@@ -139,9 +139,38 @@ def test_catalog_lists_roles_and_full_schema(client):
     assert body["limits"]["max_rows"] > 0
 
 
-def test_web_app_is_served_and_api_routes_still_win(client):
-    root = client.get("/")
+def test_built_frontend_is_served_and_api_routes_still_win(tmp_path):
+    from fastapi import FastAPI
+
+    from app.api.main import mount_frontend
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "index.html").write_text("<!doctype html><title>t2s</title>", encoding="utf-8")
+    (tmp_path / "data" / "results.json").write_text("{}", encoding="utf-8")
+    other = FastAPI()
+
+    @other.get("/health")
+    def health():
+        return {"status": "ok"}
+
+    assert mount_frontend(other, tmp_path) is True
+    c = TestClient(other)
+    root = c.get("/")
     assert root.status_code == 200 and "text/html" in root.headers["content-type"]
-    assert client.get("/about").status_code == 200
-    assert client.get("/health").json()["status"] == "ok"
-    assert client.get("/data/results.json").status_code == 200
+    assert c.get("/data/results.json").status_code == 200
+    assert c.get("/health").json() == {"status": "ok"}  # API routes registered first still win
+
+
+def test_no_frontend_build_mounts_nothing(tmp_path):
+    from fastapi import FastAPI
+
+    from app.api.main import mount_frontend
+
+    assert mount_frontend(FastAPI(), tmp_path) is False
+
+
+def test_cors_allows_localhost_dev_only(client):
+    ok = client.get("/health", headers={"Origin": "http://localhost:5173"})
+    assert ok.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    bad = client.get("/health", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in bad.headers

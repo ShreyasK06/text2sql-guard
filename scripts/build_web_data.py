@@ -1,4 +1,4 @@
-"""Collect the measured numbers for the web app into web/data/results.json.
+"""Collect the measured numbers for the web app into frontend/public/data/results.json.
 
 Reads only eval/results/summary_*.json, latency_*.csv, ablation_*.csv and the test-count line of
 RESULTS.md. Nothing is typed by hand, and nothing is computed beyond copying and one subtraction
@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "eval" / "results"
-OUT = ROOT / "web" / "data" / "results.json"
+OUT = ROOT / "frontend" / "public" / "data" / "results.json"
 
 
 def num(x: str | None) -> float | None:

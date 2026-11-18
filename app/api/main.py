@@ -18,13 +18,22 @@ from typing import Any
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.schemas import CatalogResponse, HealthResponse, PolicyResponse, QueryRequest, QueryResponse
 from app.types import GuardConfig, PipelineResult
 
 app = FastAPI(title="text2sql-guard", version="0.1.0")
+
+# CORS is open only to localhost origins, so `npm run dev` (Vite on :5173) can call this API.
+# The built front end is served from the same origin and needs no CORS.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_methods=["GET", "POST"],
+    allow_headers=["content-type"],
+)
 
 
 @lru_cache(maxsize=1)
@@ -159,13 +168,17 @@ def audit(n: int = 50, pipeline=Depends(get_pipeline)) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------- web app
-# Static front end (no build step). Registered last so every API route above wins.
-WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
+# The React front end (frontend/, built with `npm run build`) is served at "/" when frontend/dist
+# exists. It uses hash routing, so no SPA fallback is needed. Registered last so every API route wins.
+FRONTEND_DIST = Path(os.environ.get("T2S_FRONTEND_DIST") or Path(__file__).resolve().parent.parent.parent / "frontend" / "dist")
 
-if WEB_DIR.is_dir():
 
-    @app.get("/about", include_in_schema=False)
-    def about_page() -> FileResponse:
-        return FileResponse(WEB_DIR / "about.html")
+def mount_frontend(application: FastAPI, dist: Path) -> bool:
+    """Serve a built front end at "/". Returns False (and mounts nothing) when there is no build."""
+    if not (dist / "index.html").is_file():
+        return False
+    application.mount("/", StaticFiles(directory=dist, html=True), name="web")
+    return True
 
-    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+
+mount_frontend(app, FRONTEND_DIST)

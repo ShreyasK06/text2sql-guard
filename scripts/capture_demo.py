@@ -1,4 +1,4 @@
-"""Record real API responses for the static demo (web/data/demo.json).
+"""Record real API responses for the static demo (frontend/public/data/demo.json).
 
 Start the API first (mock provider, Postgres up):
 
@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "web" / "data" / "demo.json"
+OUT = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data" / "demo.json"
 KEEP_ROWS = 12
 
 # (id, headline shown in the demo list, request body). Plain examples a person would type.
