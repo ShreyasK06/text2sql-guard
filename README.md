@@ -2,13 +2,13 @@
 
 [![Query console showing an allowed request (revenue by region, as an analyst) with the eight-stage trace and the result table](docs/screenshots/console-allowed.png)](https://shreyask06.github.io/text2sql-guard/)
 
-![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1360 passed](https://img.shields.io/badge/tests-1360%20passed-brightgreen) ![provider mock only](https://img.shields.io/badge/LLM-mock%20provider%20only-lightgrey)
+![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1360 passed](https://img.shields.io/badge/tests-1402%20passed-brightgreen) ![live LLM not validated](https://img.shields.io/badge/live%20LLM-not%20validated-lightgrey)
 
 **text2sql-guard is a text-to-SQL service for PostgreSQL that treats the language model as untrusted.** A question (or raw SQL) is turned into a query and then passes eight stages, six of which can refuse it, before a read-only database user returns rows that are masked and scoped to the caller's role. Every refusal carries a rule id and a plain-language reason, every request is logged, and the whole policy lives in one file that also generates the database grants. It ships with a React web app (query console, audit log, policy explorer, results page, about page) and a recorded demo that runs without a backend.
 
 **Live demo:** <https://shreyask06.github.io/text2sql-guard/>. This is the *recorded* demo, not a live service: GitHub Pages hosts only the static front end, which replays real responses captured earlier from the running API (mock provider, local Postgres). Nothing you click there is executed.
 
-What it does **not** have, stated up front: no attack block rate was measured (the evaluation contains zero attack items), no live LLM has been run through it, and there is no authentication. See [Not validated](#not-validated).
+What it does **not** have, stated up front: no attack block rate was measured (the evaluation contains zero attack items), no live LLM output has been validated through it (an NVIDIA-hosted option is wired up and unit-tested but was never called, see [below](#using-a-free-nvidia-hosted-model)), and there is no authentication. See [Not validated](#not-validated).
 
 ## The web app
 
@@ -126,7 +126,7 @@ flowchart LR
 |---|---|---|---|
 | 1 | Input guard | `app/guards/input_guard.py` | Screens the question for restricted-data intent for the role, destructive intent, instruction-override phrasing and encoded payloads. Pattern based. |
 | 2 | Schema retrieval | `app/generation/` | Shows the model only the tables and columns the role may see. Not a gate. |
-| 3 | SQL generation | `app/generation/` | Provider interface (`mock`, `anthropic`, `gemini`), self-check verifier and bounded self-correction. Not a gate. |
+| 3 | SQL generation | `app/generation/` | Provider interface (`mock`, `nvidia` / `openai_compatible`, `anthropic`, `gemini`), self-check verifier and bounded self-correction. Not a gate. |
 | 4 | Allowlist | `app/guards/sql_validator.py` | Default-deny tables, columns and functions per role, resolved on the sqlglot AST. |
 | 5 | AST rules | `app/guards/sql_validator.py` | SELECT only, single statement, forced LIMIT, caps on joins, subqueries, depth and set operations, cartesian-join check, fail closed on parse errors. |
 | 6 | EXPLAIN cost gate | `app/guards/cost_gate.py` | Runs EXPLAIN (never the query) and refuses plans above a cost or row ceiling. |
@@ -134,6 +134,25 @@ flowchart LR
 | 8 | Output guard | `app/guards/output_guard.py` | Column masking by role, PII pattern scrubbing, cell-size cap, scan for injection text in returned data. |
 
 The ablation harness treats stages 1 and 4 to 8 as six independently switchable layers (`input_guard`, `allowlist`, `ast_rules`, `cost_gate`, `sandbox`, `output_guard`). Design rules: default deny, fail closed, enforcement in code and database permissions and never in the prompt, every block carries a rule id and a reason. The contract for each module is in `docs/ARCHITECTURE.md`; the original spec is `docs/PLAN.md`.
+
+## Using a free NVIDIA-hosted model
+
+The default provider is the deterministic `mock`, which needs no key and sends nothing anywhere. To generate SQL with a real model, the repo can talk to any OpenAI-compatible chat endpoint; the NVIDIA-hosted catalog at build.nvidia.com is the documented path because it has a free tier.
+
+1. Sign in at https://build.nvidia.com and generate an API key (it starts with `nvapi-`).
+2. Copy `.env.example` to `.env` (git-ignored) and set `NVIDIA_API_KEY=nvapi-...` there. Never commit the key or paste it into a command line that is logged.
+3. In the same file set `LLM_PROVIDER=nvidia`. A key alone does not switch it on. Optionally set `NVIDIA_MODEL`; if you leave it empty the app picks a code-capable instruct model from the live model list (a keyword heuristic, not a vetted choice) and tells you to set `NVIDIA_MODEL` if none looks suitable.
+4. Start the database and API as in the quick start. `GET /llm/status` shows the provider, `GET /llm/models` lists the models your key can see, and the web header shows the provider badge.
+5. Run the smoke test: `.venv\Scripts\python scripts\llm_smoke.py`. It lists models, runs three plain analytics questions through the full guard pipeline and prints question, SQL, decision and latency. Without a key it exits with a message and calls nothing.
+
+Other endpoints: `LLM_PROVIDER=openai_compatible` with `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL`. The client sends temperature 0, a bounded `max_tokens`, retries 429 and 5xx responses with backoff (honouring `Retry-After`), and holds itself to `LLM_RATE_LIMIT_PER_MIN` requests per minute (default 30). When it is rate limited the API returns a structured `llm_error` (for example `rate_limited` with `retry_after_s`) and the pipeline refuses to run anything. The optional self-check, which costs a second call per question, is off by default for these providers (`LLM_SELF_CHECK=1` enables it) and is skipped when little rate-limit headroom is left.
+
+Honest notes:
+
+- **Rate limits and terms.** The free tier is shared and rate limited (roughly tens of requests per minute) and is described by NVIDIA as being for development and testing. Verify the current terms and limits on build.nvidia.com before relying on it.
+- **Your data goes to NVIDIA.** Each question and the role-visible schema (only the tables and columns that role may see, never hidden ones) are sent to the provider; the optional self-check also sends the generated SQL. Query results are not sent. Do not point it at data you may not share. Few-shot examples are built from the role-visible schema only.
+- **Model output is untrusted.** It goes through the same guard pipeline as any other SQL, unchanged. SQL quality of open models varies; expect refusals, wrong answers and self-correction retries.
+- **Not validated live.** No key was available when this was built. The provider, retries, extraction and the `/llm/*` endpoints are tested only against `httpx.MockTransport` fakes. Real generation has not been run in this repo until `scripts/llm_smoke.py` is run with a key; model ids and response quirks of the live service are unverified.
 
 ## Role and policy model
 
@@ -191,7 +210,7 @@ Per-stage latencies are on the results page and in `eval/results/RESULTS.md`. Th
 
 ### Tests
 
-`pytest -q -p no:cacheprovider` on this commit: **1360 passed**, 0 failed with PostgreSQL up (1237 passed and 123 skipped without a database, which is what CI runs) (the evaluation snapshot above recorded 1356; three tests were added for the `/catalog` endpoint, the front-end mount and CORS). The suite covers each guard, the pipeline, the API, the harness, the oracle and statistics, plus database tests against PostgreSQL 16 (column grants, read-only roles, statement timeout, RLS by region, function revocations, seed integrity). These tests check rule behaviour on fixed examples; they are not a measured block rate.
+`pytest -q -p no:cacheprovider` on this commit: **1402 passed**, 0 failed with PostgreSQL up (1237 passed and 123 skipped without a database, which is what CI runs) (the evaluation snapshot above recorded 1356; three tests were added for the `/catalog` endpoint, the front-end mount and CORS). The suite covers each guard, the pipeline, the API, the harness, the oracle and statistics, plus database tests against PostgreSQL 16 (column grants, read-only roles, statement timeout, RLS by region, function revocations, seed integrity). These tests check rule behaviour on fixed examples; they are not a measured block rate.
 
 ## Residual risk
 
@@ -207,13 +226,13 @@ This is design analysis, not measurement:
 
 ## Not validated
 
-- **No live LLM.** Only the deterministic `mock` provider was run, including for the web app and the recorded demo. The Anthropic and Gemini providers are unit-tested against fake HTTP clients, but no API key was used and no real model output was ever passed through the guards. The self-check shows "not verified" under the mock provider.
+- **No live LLM.** Only the deterministic `mock` provider was run, including for the web app and the recorded demo. The NVIDIA / OpenAI-compatible, Anthropic and Gemini providers are unit-tested against fake HTTP transports (`httpx.MockTransport`), but no API key was used and no real model output was ever passed through the guards. Live NVIDIA generation, its default-model heuristic, the free-tier rate-limit behaviour and the accuracy of open-model SQL are all unverified until `scripts/llm_smoke.py` is run with a key (see [Using a free NVIDIA-hosted model](#using-a-free-nvidia-hosted-model)). The self-check shows "not verified" under the mock provider.
 - **No attack evaluation.** No adversarial items exist. No block rate, interval, per-category or per-layer attack ablation.
 - **No Spider or BIRD run.** `eval/benchmarks/` is empty, so execution accuracy and the accuracy cost of the guards are unmeasured.
 - **Verifier and self-correction** (silent-wrong-answer rate, precision and recall, retry recovery) were not evaluated.
 - **Postgres-dependent layers did run on real PostgreSQL 16** for the 150 benign queries and the database tests. That shows benign queries work through them and the grants, RLS and timeout behave as tested; it does not show they stop attacks.
 - **Web app:** checked in one real browser (Chrome) at desktop and phone widths, in light mode, and with an automated accessibility audit (no violations reported on the console, About and results pages); dark mode, other browsers and load were not tested. The Docker images were not built.
-- No API keys are needed or present; there is no `.env` in the repository.
+- No API keys are needed to run the mock path, and none are present; there is no `.env` in the repository.
 
 ## Project layout
 
@@ -225,7 +244,7 @@ Dockerfile      API + built front end image (see docker-compose.yml)
 policies/       policy.yaml, the single source of truth
 db/             schema, seed data, generated grants, Docker init scripts
 eval/           harness, oracle, statistics, ablations, results, benchmarks (empty)
-scripts/        db.py, reproduce.py, build_web_data.py, capture_demo.py
+scripts/        db.py, reproduce.py, build_web_data.py, capture_demo.py, llm_smoke.py (live LLM check, needs a key)
 tests/          offline and database tests
 ui/             Streamlit demo
 docs/           PLAN.md, ARCHITECTURE.md, figures, screenshots

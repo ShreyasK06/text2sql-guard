@@ -93,7 +93,9 @@ def mask_value(value: object, kind: str) -> str
 
 # app/generation/
 class LLMProvider(Protocol):   name: str;  def complete(self, system: str, prompt: str) -> str
-class MockProvider, ScriptedProvider, AnthropicProvider, GeminiProvider
+class MockProvider, ScriptedProvider, AnthropicProvider, GeminiProvider,
+      OpenAICompatibleProvider   # LLM_PROVIDER=nvidia|openai_compatible; typed ProviderError subclasses, retry, RateLimiter
+# GET /llm/status and GET /llm/models describe the provider (never the key); a ProviderError becomes PipelineResult.llm_error
 def get_provider(settings: Settings) -> LLMProvider
 def retrieve_schema(question: str, role: RolePolicy, policy: Policy, k: int = 4) -> dict[str, list[str]]
 def generate_sql(question: str, role: RolePolicy, policy: Policy, provider: LLMProvider,
