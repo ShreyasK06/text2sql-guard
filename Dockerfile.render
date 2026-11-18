@@ -1,0 +1,41 @@
+# Single-container image for Render's free web service: PostgreSQL 16 + the API + the built React app.
+#
+# Why one container: the guardrails rely on database roles, revoked built-in functions and row-level
+# security (db/init/*.sql), which need a superuser. A managed database usually does not give you one,
+# so the database runs inside the container, bound to 127.0.0.1 only, and is re-seeded with synthetic
+# data on every boot (scripts/render_start.sh). Nothing persists; that is fine for a demo.
+
+# ---- stage 1: build the React app ----
+FROM node:20-alpine AS web
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---- stage 2: PostgreSQL 16 + Python ----
+FROM postgres:16-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 python3-venv \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:/usr/lib/postgresql/16/bin:${PATH}"
+WORKDIR /srv
+COPY requirements-api.txt ./
+RUN pip install -r requirements-api.txt
+COPY app ./app
+COPY db ./db
+COPY policies ./policies
+COPY scripts/render_start.sh ./render_start.sh
+COPY --from=web /web/dist ./frontend/dist
+# The image's own unprivileged `postgres` user runs everything (Postgres refuses to run as root).
+RUN mkdir -p /data/audit /var/lib/postgresql/data \
+ && chown -R postgres:postgres /data /var/lib/postgresql /srv \
+ && chmod +x /srv/render_start.sh
+USER postgres
+ENV T2S_AUDIT_PATH=/data/audit/audit.jsonl \
+    T2S_DB_HOST=127.0.0.1 T2S_DB_PORT=54329
+EXPOSE 10000
+ENTRYPOINT []
+CMD ["/srv/render_start.sh"]
