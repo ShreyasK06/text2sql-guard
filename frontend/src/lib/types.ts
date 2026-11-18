@@ -37,11 +37,15 @@ export interface QueryResponse {
   redactions: number;
   retries: number;
   self_check: SelfCheck | null;
+  /** Structured provider failure, present when decision is "error" and rule_id starts with "llm.". */
+  llm_error?: LlmError | null;
   latency_ms: number;
   layer_latency_ms: Record<string, number>;
   guard_results: GuardResult[];
   config: string;
 }
+
+export interface LlmError { code: string; message: string; retry_after_s?: number }
 
 export interface HealthResponse { status: string; db: boolean; provider: string }
 export interface LlmStatus {
@@ -51,6 +55,14 @@ export interface LlmStatus {
   mode: "mock" | "live";
   privacy_note: string;
   detail?: string;
+}
+
+export interface LlmModels {
+  provider: string;
+  models: string[];
+  suggested: string | null;
+  reason: string | null;
+  error: LlmError | null;
 }
 
 export interface PolicyResponse {

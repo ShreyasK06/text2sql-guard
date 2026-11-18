@@ -106,3 +106,31 @@ export function buildTrace(resp: QueryResponse, req?: Pick<QueryRequest, "sql" |
     return o;
   });
 }
+
+const ADVICE: [string, string][] = [
+  ["input.destructive_intent", "Ask a read-only question, such as a total, a count or a list. This app never changes data."],
+  ["input.restricted_data_intent", "Pick a different role in the Policy page that is allowed to read that data, or ask about columns your role can see."],
+  ["input.injection_phrase", "Rephrase the question as a plain data question without instructions to the system."],
+  ["input.role_override", "The role is chosen with the Role control, not in the question."],
+  ["input.embedded_sql", "Tick Supply SQL directly to run SQL, or describe what you want in words."],
+  ["input.", "Rewrite the question in plain words and keep it short."],
+  ["allowlist.column_denied", "Open the Policy page to see which columns this role can read, then ask about those."],
+  ["allowlist.table_denied", "Open the Policy page to see which tables this role can read, then ask about those."],
+  ["allowlist.star_denied", "List the columns you want instead of SELECT *."],
+  ["allowlist.masked_column_misuse", "A masked column can be shown, but not filtered, joined or computed on. Remove it from the WHERE, JOIN or expression."],
+  ["allowlist.", "Use only tables, columns and functions on this role's list (Policy page)."],
+  ["ast.cartesian_join", "Add a JOIN ... ON condition that relates the two tables."],
+  ["ast.non_select", "Only SELECT is allowed. Rewrite it as a read-only query."],
+  ["ast.multi_statement", "Send one statement without a trailing second statement."],
+  ["ast.", "Simplify the query: one SELECT, fewer joins and subqueries, no system catalogs."],
+  ["cost.", "Narrow the query with a WHERE filter or aggregate it, so the database expects less work."],
+  ["sandbox.", "The database itself refused this under the role's permissions. The Policy page shows what the role may read."],
+  ["internal.region_required", "Managers see one region. Pick a region in the form."],
+  ["llm.", "This is a model problem, not a policy decision. Try again."],
+];
+
+/** What the person can do next, in plain words. */
+export function ruleAdvice(id: string | null | undefined): string {
+  if (!id) return "";
+  return ADVICE.find(([p]) => id === p || (p.endsWith(".") && id.startsWith(p)))?.[1] ?? "Rephrase the request or choose a role that is allowed to see what you asked for.";
+}

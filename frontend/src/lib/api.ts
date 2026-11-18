@@ -1,6 +1,7 @@
 import { apiUrl, assetUrl } from "./url";
+import { ApiError } from "./consoleMachine";
 import type {
-  AuditEntry, CatalogResponse, DemoData, HealthResponse, LlmStatus, PolicyResponse, QueryRequest, QueryResponse, Results,
+  AuditEntry, CatalogResponse, DemoData, HealthResponse, LlmModels, LlmStatus, PolicyResponse, QueryRequest, QueryResponse, Results,
 } from "./types";
 
 export async function getJSON<T>(url: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -15,7 +16,8 @@ export async function getJSON<T>(url: string, init?: RequestInit & { timeout?: n
         const j = await r.json();
         detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
       } catch { /* body was not JSON */ }
-      throw new Error(detail || `${r.status} ${r.statusText}`);
+      const ra = Number(r.headers?.get?.("retry-after"));
+      throw new ApiError(detail || `${r.status} ${r.statusText}`, r.status, Number.isFinite(ra) && ra > 0 ? ra : null);
     }
     return (await r.json()) as T;
   } finally {
@@ -27,6 +29,7 @@ export async function getJSON<T>(url: string, init?: RequestInit & { timeout?: n
 export const liveApi = {
   health: () => getJSON<HealthResponse>(apiUrl("health"), { timeout: 3000 }),
   llmStatus: () => getJSON<LlmStatus>(apiUrl("llm/status"), { timeout: 3000 }),
+  llmModels: () => getJSON<LlmModels>(apiUrl("llm/models"), { timeout: 15000 }),
   catalog: () => getJSON<CatalogResponse>(apiUrl("catalog")),
   policy: (role: string) => getJSON<PolicyResponse>(apiUrl(`policy/${encodeURIComponent(role)}`)),
   audit: () => getJSON<AuditEntry[]>(apiUrl("audit?n=500")),
