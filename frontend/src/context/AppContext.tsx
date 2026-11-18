@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { liveApi, staticApi } from "../lib/api";
 import type {
-  AuditEntry, CatalogResponse, DemoData, HealthResponse, PolicyResponse, QueryRequest, QueryResponse,
+  AuditEntry, CatalogResponse, DemoData, HealthResponse, LlmStatus, PolicyResponse, QueryRequest, QueryResponse,
 } from "../lib/types";
 
 export type Mode = "loading" | "live" | "demo" | "offline";
@@ -16,6 +16,8 @@ export interface Backend {
 export interface AppState {
   mode: Mode;
   health: HealthResponse | null;
+  /** Provider details from GET /llm/status; null in demo mode or when the endpoint is unavailable. */
+  llm: LlmStatus | null;
   demo: DemoData | null;
   /** Why the app is in demo mode when it was not asked for. */
   reason: string;
@@ -49,6 +51,7 @@ export function AppProvider({ children, forceMode }: { children: ReactNode; forc
   const configured = forceMode ?? import.meta.env.VITE_MODE ?? "auto";
   const [mode, setMode] = useState<Mode>("loading");
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [llm, setLlm] = useState<LlmStatus | null>(null);
   const [demo, setDemo] = useState<DemoData | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -74,6 +77,7 @@ export function AppProvider({ children, forceMode }: { children: ReactNode; forc
         if (!alive) return;
         setHealth(h);
         setMode("live");
+        liveApi.llmStatus().then((s) => { if (alive) setLlm(s); }).catch(() => { /* older API: no badge details */ });
       } catch {
         if (!alive) return;
         if (configured === "live") {
@@ -89,8 +93,8 @@ export function AppProvider({ children, forceMode }: { children: ReactNode; forc
   const switchToDemo = useCallback(() => { void startDemo("Switched to the recorded demo."); }, [startDemo]);
 
   const value = useMemo<AppState>(
-    () => ({ mode, health, demo, reason, error, backend, switchToDemo }),
-    [mode, health, demo, reason, error, backend, switchToDemo],
+    () => ({ mode, health, llm, demo, reason, error, backend, switchToDemo }),
+    [mode, health, llm, demo, reason, error, backend, switchToDemo],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

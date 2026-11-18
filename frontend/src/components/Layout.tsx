@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import type { LlmStatus } from "../lib/types";
 import { ErrBox, Skeleton } from "./States";
 
 const NAV = [
@@ -25,6 +26,23 @@ function ModeBadge() {
     <div className={cls} role="status">
       <i aria-hidden="true" />
       <span>{text}</span>
+    </div>
+  );
+}
+
+export function providerLabel(llm: LlmStatus): string {
+  if (llm.mode !== "live") return "Mock provider";
+  const name = llm.provider === "nvidia" ? "NVIDIA" : llm.provider;
+  return `${name} · ${llm.model ?? "model chosen from live list"}`;
+}
+
+function ProviderBadge() {
+  const { mode, llm } = useApp();
+  if (mode !== "live" || !llm) return null;
+  return (
+    <div className="provider" tabIndex={0} role="note" aria-label={`${providerLabel(llm)}. ${llm.privacy_note}`}>
+      <span>{providerLabel(llm)}</span>
+      <span className="tip" aria-hidden="true">{llm.privacy_note}</span>
     </div>
   );
 }
@@ -98,6 +116,7 @@ export function Layout() {
           ))}
         </nav>
         <ModeBadge />
+        <ProviderBadge />
       </header>
       <main id="view" ref={mainRef} tabIndex={-1} className={wide ? "wide" : undefined}>
         {mode === "loading" ? (

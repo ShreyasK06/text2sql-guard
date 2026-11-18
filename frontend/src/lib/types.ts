@@ -44,6 +44,14 @@ export interface QueryResponse {
 }
 
 export interface HealthResponse { status: string; db: boolean; provider: string }
+export interface LlmStatus {
+  provider: string;
+  model: string | null;
+  configured: boolean;
+  mode: "mock" | "live";
+  privacy_note: string;
+  detail?: string;
+}
 
 export interface PolicyResponse {
   role: string;

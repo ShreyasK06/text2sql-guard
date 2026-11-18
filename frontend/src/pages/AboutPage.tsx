@@ -4,6 +4,7 @@ import { useLoad } from "../hooks";
 import { staticApi } from "../lib/api";
 import { pct } from "../lib/format";
 import { BASE } from "../lib/url";
+import { providerLabel } from "../components/Layout";
 import { Trace } from "../components/Trace";
 
 const PIPELINE: { name: string; text: string; kind: string; model?: boolean }[] = [
@@ -39,7 +40,7 @@ function Stats() {
 }
 
 export function AboutPage() {
-  const { mode } = useApp();
+  const { mode, llm } = useApp();
   const { data: demo } = useLoad(() => staticApi.demo(), []);
   const c = demo?.cases.find((x) => x.id === "delete");
   return (
@@ -128,6 +129,11 @@ export function AboutPage() {
               </ul>
             </div>
           </div>
+          {llm ? (
+            <p className="llm-note">
+              <b>Language model:</b> {providerLabel(llm)}. {llm.privacy_note}
+            </p>
+          ) : null}
         </div>
       </section>
 

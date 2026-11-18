@@ -9,6 +9,8 @@ import { AppProvider } from "../context/AppContext";
 const json = (body: unknown, ok = true) =>
   Promise.resolve({ ok, status: ok ? 200 : 500, statusText: ok ? "OK" : "err", json: () => Promise.resolve(body) } as Response);
 
+let llmStatus: unknown = { provider: "mock", model: "mock", configured: false, mode: "mock", privacy_note: "Questions and the role-visible schema would be sent to the configured provider if a live one were enabled. With the mock provider nothing leaves this machine." };
+
 function mockFetch(apiUp: boolean) {
   const calls: string[] = [];
   vi.stubGlobal("fetch", vi.fn((url: string) => {
@@ -16,6 +18,7 @@ function mockFetch(apiUp: boolean) {
     if (String(url).endsWith("data/demo.json")) return json(demo);
     if (String(url).endsWith("data/results.json")) return json(results);
     if (String(url).endsWith("health") && apiUp) return json({ status: "ok", db: true, provider: "mock" });
+    if (String(url).endsWith("llm/status") && apiUp) return json(llmStatus);
     return Promise.reject(new TypeError("network down"));
   }));
   return calls;
@@ -63,6 +66,36 @@ describe("recorded demo", () => {
     expect(await screen.findByText(/The attack block rate was not measured/)).toBeTruthy();
     expect(calls.some((c) => c.endsWith("health"))).toBe(false);
     expect(calls.every((c) => c.startsWith(import.meta.env.BASE_URL))).toBe(true);
+  });
+});
+
+describe("provider badge", () => {
+  it("shows the mock provider with the privacy note", async () => {
+    mockFetch(true);
+    renderApp("/console");
+    const badge = await screen.findByRole("note", { name: /Mock provider/ });
+    expect(badge.getAttribute("aria-label")).toMatch(/role-visible schema/);
+    expect(badge.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("shows NVIDIA and the model for a live provider, without any key", async () => {
+    llmStatus = { provider: "nvidia", model: "acme/coder-instruct", configured: true, mode: "live",
+      privacy_note: "Questions and the role-visible schema (only the tables and columns your role may see) are sent to the configured provider (NVIDIA, integrate.api.nvidia.com)." };
+    try {
+      mockFetch(true);
+      renderApp("/console");
+      expect(await screen.findByText(/NVIDIA · acme\/coder-instruct/)).toBeTruthy();
+      expect(document.body.textContent).not.toMatch(/nvapi/);
+    } finally {
+      llmStatus = { provider: "mock", model: "mock", configured: false, mode: "mock", privacy_note: "Questions and the role-visible schema would be sent to the configured provider if a live one were enabled." };
+    }
+  });
+
+  it("shows no badge in the recorded demo", async () => {
+    mockFetch(false);
+    renderApp("/console", "demo");
+    await screen.findByText("Allowed");
+    expect(screen.queryByRole("note", { name: /provider/i })).toBeNull();
   });
 });
 

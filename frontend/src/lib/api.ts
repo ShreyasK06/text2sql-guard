@@ -1,6 +1,6 @@
 import { apiUrl, assetUrl } from "./url";
 import type {
-  AuditEntry, CatalogResponse, DemoData, HealthResponse, PolicyResponse, QueryRequest, QueryResponse, Results,
+  AuditEntry, CatalogResponse, DemoData, HealthResponse, LlmStatus, PolicyResponse, QueryRequest, QueryResponse, Results,
 } from "./types";
 
 export async function getJSON<T>(url: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -26,6 +26,7 @@ export async function getJSON<T>(url: string, init?: RequestInit & { timeout?: n
 /** Typed client for the FastAPI service (app/api/main.py). */
 export const liveApi = {
   health: () => getJSON<HealthResponse>(apiUrl("health"), { timeout: 3000 }),
+  llmStatus: () => getJSON<LlmStatus>(apiUrl("llm/status"), { timeout: 3000 }),
   catalog: () => getJSON<CatalogResponse>(apiUrl("catalog")),
   policy: (role: string) => getJSON<PolicyResponse>(apiUrl(`policy/${encodeURIComponent(role)}`)),
   audit: () => getJSON<AuditEntry[]>(apiUrl("audit?n=500")),
