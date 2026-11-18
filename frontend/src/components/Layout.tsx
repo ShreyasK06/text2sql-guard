@@ -2,30 +2,47 @@ import { useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import type { LlmStatus } from "../lib/types";
+import { themeStore, useTheme, type Theme } from "../lib/prefs";
 import { ErrBox, Skeleton } from "./States";
+import { Icon } from "./Icon";
 
 const NAV = [
   { to: "/console", label: "Console" },
+  { to: "/history", label: "History" },
   { to: "/audit", label: "Audit log" },
   { to: "/policy", label: "Policy" },
-  { to: "/safety", label: "Safety and results" },
+  { to: "/safety", label: "Safety" },
   { to: "/about", label: "About" },
+  { to: "/settings", label: "Settings" },
 ];
+
+/** Page titles, used for document.title and announced by the moved focus. */
+export const ROUTE_TITLES: Record<string, string> = {
+  "/console": "Console",
+  "/history": "History",
+  "/audit": "Audit log",
+  "/policy": "Policy",
+  "/safety": "Safety and results",
+  "/about": "About",
+  "/settings": "Settings",
+};
 
 function ModeBadge() {
   const { mode, health } = useApp();
   let cls = "mode";
-  let text = "Connecting";
-  if (mode === "demo") { cls += " demo"; text = "Recorded demo, not live"; }
-  else if (mode === "offline") { cls += " off"; text = "Offline"; }
+  let short = "Connecting";
+  let full = "Connecting to the service";
+  if (mode === "demo") { cls += " demo"; short = "Recorded demo"; full = "Recorded demo, not live"; }
+  else if (mode === "offline") { cls += " off"; short = "Offline"; full = "Offline"; }
   else if (mode === "live" && health) {
     if (!health.db) cls += " off";
-    text = `Live, ${health.provider} provider, database ${health.db ? "up" : "DOWN"}`;
+    short = health.db ? "Live" : "Live, database down";
+    full = `Live, ${health.provider} provider, database ${health.db ? "up" : "DOWN"}`;
   }
   return (
-    <div className={cls} role="status">
+    <div className={cls} role="status" aria-label={full} title={full}>
       <i aria-hidden="true" />
-      <span>{text}</span>
+      <span aria-hidden="true">{short}</span>
     </div>
   );
 }
@@ -40,10 +57,25 @@ function ProviderBadge() {
   const { mode, llm } = useApp();
   if (mode !== "live" || !llm) return null;
   return (
-    <div className="provider" tabIndex={0} role="note" aria-label={`${providerLabel(llm)}. ${llm.privacy_note}`}>
+    <Link to="/settings" className="provider" aria-label={`${providerLabel(llm)}. ${llm.privacy_note} Open settings.`}>
       <span>{providerLabel(llm)}</span>
       <span className="tip" aria-hidden="true">{llm.privacy_note}</span>
-    </div>
+    </Link>
+  );
+}
+
+const NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
+const THEME_ICON = { system: "auto", light: "sun", dark: "moon" } as const;
+
+function ThemeButton() {
+  const theme = useTheme();
+  const next = NEXT[theme];
+  return (
+    <button type="button" className="iconbtn" onClick={() => themeStore.set(next)}
+      aria-label={`Theme: ${theme}. Switch to ${next}.`} title={`Theme: ${theme}`}>
+      <Icon name={THEME_ICON[theme]} />
+      <span className="themename" aria-hidden="true">{theme}</span>
+    </button>
   );
 }
 
@@ -65,12 +97,13 @@ function Banner() {
   );
 }
 
-function SiteFooter() {
+function SiteFooter({ big }: { big: boolean }) {
   return (
-    <footer className="sitefoot">
+    <footer className={big ? "sitefoot" : "minifoot"}>
       <div className="wrap">
-        <span className="name">text2sql-guard</span>
+        {big ? <span className="name">text2sql-guard</span> : null}
         <p>
+          {big ? null : <b>text2sql-guard. </b>}
           MIT licensed. Source at{" "}
           <a href="https://github.com/ShreyasK06/text2sql-guard">github.com/ShreyasK06/text2sql-guard</a>. All data is synthetic.
         </p>
@@ -85,6 +118,11 @@ export function Layout() {
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   const wide = pathname === "/about";
+  const title = ROUTE_TITLES[pathname];
+
+  useEffect(() => {
+    document.title = title ? `${title} · text2sql-guard` : "text2sql-guard";
+  }, [title]);
 
   useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -92,6 +130,7 @@ export function Layout() {
     mainRef.current?.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
   }, [pathname]);
 
+  const ready = mode !== "loading" && mode !== "offline";
   return (
     <div className={wide ? "site" : undefined}>
       <a
@@ -115,8 +154,11 @@ export function Layout() {
             <NavLink key={n.to} to={n.to}>{n.label}</NavLink>
           ))}
         </nav>
-        <ModeBadge />
-        <ProviderBadge />
+        <div className="status-cluster">
+          <ModeBadge />
+          <ProviderBadge />
+          <ThemeButton />
+        </div>
       </header>
       <main id="view" ref={mainRef} tabIndex={-1} className={wide ? "wide" : undefined}>
         {mode === "loading" ? (
@@ -130,7 +172,7 @@ export function Layout() {
           <Outlet />
         )}
       </main>
-      {wide && mode !== "loading" && mode !== "offline" ? <SiteFooter /> : null}
+      {ready ? <SiteFooter big={wide} /> : null}
     </div>
   );
 }

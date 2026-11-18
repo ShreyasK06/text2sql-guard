@@ -56,7 +56,7 @@ describe("recorded demo", () => {
     mockFetch(false);
     renderApp("/console", "demo");
     fireEvent.click(await screen.findByRole("button", { name: /Ask to remove all orders/ }));
-    expect(await screen.findByText(/Blocked at Input guard/)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: /Blocked at Input guard/ })).toBeTruthy();
     expect(screen.getAllByText("input.destructive_intent").length).toBeGreaterThan(0);
   });
 
@@ -73,9 +73,9 @@ describe("provider badge", () => {
   it("shows the mock provider with the privacy note", async () => {
     mockFetch(true);
     renderApp("/console");
-    const badge = await screen.findByRole("note", { name: /Mock provider/ });
+    const badge = await screen.findByRole("link", { name: /Mock provider/ });
     expect(badge.getAttribute("aria-label")).toMatch(/role-visible schema/);
-    expect(badge.getAttribute("tabindex")).toBe("0");
+    expect(badge.getAttribute("href")).toMatch(/settings$/);
   });
 
   it("shows NVIDIA and the model for a live provider, without any key", async () => {
@@ -95,7 +95,7 @@ describe("provider badge", () => {
     mockFetch(false);
     renderApp("/console", "demo");
     await screen.findByText("Allowed");
-    expect(screen.queryByRole("note", { name: /provider/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /provider/i })).toBeNull();
   });
 });
 
@@ -103,7 +103,7 @@ describe("live mode", () => {
   it("uses the API when health answers", async () => {
     mockFetch(true);
     renderApp("/console");
-    await waitFor(() => expect(screen.getByText(/Live, mock provider, database up/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("status", { name: /Live, mock provider, database up/ })).toBeTruthy());
     expect(screen.queryByText(/Recorded demo, not live/)).toBeNull();
     expect(screen.getByRole("button", { name: /Run through the guards/ })).toBeTruthy();
   });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { useLoad } from "../hooks";
 import type { CatalogResponse } from "../lib/types";
@@ -6,9 +6,9 @@ import { ErrBox, PageHead, Skeleton } from "../components/States";
 
 function RoleBody({ cat, role }: { cat: CatalogResponse; role: string }) {
   const { backend } = useApp();
-  const { data: p, error, loading } = useLoad(() => backend.policy(role), [backend, role]);
-  if (loading) return <Skeleton />;
-  if (error || !p) return <ErrBox>{error || "No policy returned."}</ErrBox>;
+  const { data: p, error, loading, reload } = useLoad(() => backend.policy(role), [backend, role]);
+  if (loading) return <Skeleton label="Loading the policy" />;
+  if (error || !p) return <ErrBox title="This role's policy could not be loaded." onRetry={reload}>{error || "No policy returned."}</ErrBox>;
   let vis = 0, tot = 0, mk = 0;
   const cards = Object.entries(cat.schema).map(([t, cols]) => {
     const plain = new Set(p.plain_columns[t] || []);
@@ -17,7 +17,7 @@ function RoleBody({ cat, role }: { cat: CatalogResponse; role: string }) {
     vis += n; tot += cols.length; mk += Object.keys(masked).length;
     return (
       <section key={t} className={`tcard${n === 0 ? " gone" : ""}`}>
-        <h3>{t}<span>{n === 0 ? "no access" : `${n} of ${cols.length} columns`}</span></h3>
+        <h2>{t}<span>{n === 0 ? "no access" : `${n} of ${cols.length} columns`}</span></h2>
         <ul className="cols">
           {cols.map((c) => {
             const k = masked[c] ? "masked" : plain.has(c) ? "plain" : "hidden";
@@ -49,9 +49,9 @@ function RoleBody({ cat, role }: { cat: CatalogResponse; role: string }) {
         <h2>Limits that apply to every role</h2>
         <dl className="kv">
           {Object.entries(cat.limits).map(([k, v]) => (
-            <span key={k} style={{ display: "contents" }}>
+            <Fragment key={k}>
               <dt>{k.replace(/_/g, " ")}</dt><dd className="num">{Number(v).toLocaleString()}</dd>
-            </span>
+            </Fragment>
           ))}
         </dl>
       </section>
@@ -61,7 +61,7 @@ function RoleBody({ cat, role }: { cat: CatalogResponse; role: string }) {
 
 export function PolicyPage() {
   const { backend } = useApp();
-  const { data: cat, error, loading } = useLoad(() => backend.catalog(), [backend]);
+  const { data: cat, error, loading, reload } = useLoad(() => backend.catalog(), [backend]);
   const [role, setRole] = useState("");
   const active = role || cat?.roles[0]?.name || "";
   return (
@@ -69,8 +69,8 @@ export function PolicyPage() {
       <PageHead title="What each role may see">
         Default deny: a column that is not listed for a role does not exist for it. Masked columns can be shown, but only as masked values.
       </PageHead>
-      {error ? <ErrBox>{error}</ErrBox> : null}
-      {loading ? <Skeleton /> : null}
+      {error ? <ErrBox title="The policy could not be loaded." onRetry={reload}>{error}</ErrBox> : null}
+      {loading ? <Skeleton label="Loading the policy" /> : null}
       {cat ? (
         <>
           <fieldset className="roles">

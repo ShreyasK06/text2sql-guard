@@ -11,6 +11,9 @@ import "@fontsource/jetbrains-mono/latin-600.css";
 import "./styles.css";
 import { App } from "./App";
 import { AppProvider } from "./context/AppContext";
+import { initPrefs } from "./lib/prefs";
+
+initPrefs();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

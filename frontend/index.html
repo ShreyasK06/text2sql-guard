@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>text2sql-guard</title>
 <meta name="description" content="Ask a database questions in plain English. Every query passes eight stages that can each refuse it, and only masked, role-scoped rows come back.">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="%BASE_URL%favicon.svg" type="image/svg+xml">
+<script>
+// Apply the saved theme and density before first paint so there is no flash. Storage may be blocked.
+try {
+  var t = JSON.parse(localStorage.getItem("t2sg.theme.v1"));
+  if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  if (JSON.parse(localStorage.getItem("t2sg.density.v1")) === "compact") document.documentElement.setAttribute("data-density", "compact");
+} catch (e) { /* default theme */ }
+</script>
 </head>
 <body>
 <div id="root"><noscript><p>This app needs JavaScript.</p></noscript></div>

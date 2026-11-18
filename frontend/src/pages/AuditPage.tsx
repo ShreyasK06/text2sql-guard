@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { useLoad } from "../hooks";
 import { fmtMs } from "../lib/format";
@@ -74,18 +75,26 @@ function AuditRows({ rows }: { rows: AuditEntry[] }) {
 
 export function AuditPage() {
   const { mode, backend } = useApp();
-  const { data, error, loading } = useLoad(() => backend.audit(), [backend]);
-  const [dec, setDec] = useState("");
-  const [rule, setRule] = useState("");
-  const [role, setRole] = useState("");
-  const [q, setQ] = useState("");
+  const { data, error, loading, reload } = useLoad(() => backend.audit(), [backend]);
+  // Filters live in the URL so a filtered view can be shared, bookmarked and survives a reload.
+  const [params, setParams] = useSearchParams();
+  const dec = params.get("decision") ?? "";
+  const rule = params.get("rule") ?? "";
+  const role = params.get("role") ?? "";
+  const q = params.get("q") ?? "";
+  const setParam = (k: string, v: string) =>
+    setParams((p) => { const n = new URLSearchParams(p); if (v) n.set(k, v); else n.delete(k); return n; }, { replace: true });
+  const setDec = (v: string) => setParam("decision", v);
+  const setRule = (v: string) => setParam("rule", v);
+  const setRole = (v: string) => setParam("role", v);
+  const setQ = (v: string) => setParam("q", v);
 
   const entries = useMemo(() => (data ? data.slice().reverse() : []), [data]);
   const rules = useMemo(() => [...new Set(entries.map((e) => e.rule_id).filter((x): x is string => !!x))].sort(), [entries]);
   const rows = entries.filter((e) =>
     (!dec || e.decision === dec) && (!rule || e.rule_id === rule) && (!role || e.role === role) &&
     (!q || `${e.question || ""} ${e.sql_generated || ""}`.toLowerCase().includes(q.toLowerCase())));
-  const clear = () => { setDec(""); setRule(""); setRole(""); setQ(""); };
+  const clear = () => setParams({}, { replace: true });
 
   return (
     <>
@@ -94,7 +103,7 @@ export function AuditPage() {
           ? "The audit entries the service wrote for the recorded requests."
           : "Every request the service has handled, newest first, with the guard that decided it."}
       </PageHead>
-      {error ? <ErrBox title="Something went wrong.">{error}</ErrBox> : null}
+      {error ? <ErrBox title="The audit log could not be loaded." onRetry={reload}>{error}</ErrBox> : null}
       {loading ? <Skeleton /> : null}
       {data ? (
         <>
@@ -127,9 +136,13 @@ export function AuditPage() {
           </form>
           <p className="small muted" role="status">{rows.length} of {entries.length} entries</p>
           {!entries.length ? (
-            <Empty title="No requests yet">Run something in the console and it will be logged here.</Empty>
+            <Empty title="No requests yet" action={<Link className="btn" to="/console">Open the console</Link>}>
+              Run something in the console and it will be logged here.
+            </Empty>
           ) : !rows.length ? (
-            <Empty title="No entries match these filters">Clear a filter to see more.</Empty>
+            <Empty title="No entries match these filters" action={<button type="button" className="btn ghost" onClick={clear}>Clear filters</button>}>
+              Clear a filter to see more.
+            </Empty>
           ) : (
             <AuditRows rows={rows} />
           )}
