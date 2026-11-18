@@ -1,16 +1,18 @@
 # text2sql-guard
 
-![Query console: a manager asks for customer contact details and the eight-stage trace shows every stage passing, with email and phone masked](docs/screenshots/console-allowed.png)
+[![Query console showing an allowed request (revenue by region, as an analyst) with the eight-stage trace and the result table](docs/screenshots/console-allowed.png)](https://shreyask06.github.io/text2sql-guard/)
 
-![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1358 passed](https://img.shields.io/badge/tests-1358%20passed-brightgreen) ![provider mock only](https://img.shields.io/badge/LLM-mock%20provider%20only-lightgrey)
+![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1360 passed](https://img.shields.io/badge/tests-1360%20passed-brightgreen) ![provider mock only](https://img.shields.io/badge/LLM-mock%20provider%20only-lightgrey)
 
-**text2sql-guard is a text-to-SQL service for PostgreSQL that treats the language model as untrusted.** A question (or raw SQL) is turned into a query and then passes eight stages, six of which can refuse it, before a read-only database user returns rows that are masked and scoped to the caller's role. Every refusal carries a rule id and a plain-language reason, every request is logged, and the whole policy lives in one file that also generates the database grants. It ships with a web app (query console, audit log, policy explorer, results page), a landing page, and a recorded demo that runs without a backend.
+**text2sql-guard is a text-to-SQL service for PostgreSQL that treats the language model as untrusted.** A question (or raw SQL) is turned into a query and then passes eight stages, six of which can refuse it, before a read-only database user returns rows that are masked and scoped to the caller's role. Every refusal carries a rule id and a plain-language reason, every request is logged, and the whole policy lives in one file that also generates the database grants. It ships with a React web app (query console, audit log, policy explorer, results page, about page) and a recorded demo that runs without a backend.
+
+**Live demo:** <https://shreyask06.github.io/text2sql-guard/>. This is the *recorded* demo, not a live service: GitHub Pages hosts only the static front end, which replays real responses captured earlier from the running API (mock provider, local Postgres). Nothing you click there is executed.
 
 What it does **not** have, stated up front: no attack block rate was measured (the evaluation contains zero attack items), no live LLM has been run through it, and there is no authentication. See [Not validated](#not-validated).
 
 ## The web app
 
-Start the API and open `http://127.0.0.1:8000/`. The same server serves the landing page at `/about`.
+A Vite + React + TypeScript single-page app in `frontend/`, served by the same FastAPI process that hosts the API. With the full stack running (see [Quick start](#quick-start)) open `http://localhost:8000/`.
 
 | Screen | What it shows |
 |---|---|
@@ -18,7 +20,7 @@ Start the API and open `http://127.0.0.1:8000/`. The same server serves the land
 | **Audit log** | Every request, newest first, filterable by decision, rule and role, with the stage timings of each. |
 | **Policy** | For each role, which tables and columns are visible, masked, or hidden, and the limits that apply. |
 | **Safety and results** | The measured numbers from `eval/results`, with the missing attack rate stated plainly. |
-| **About** (`/about`) | What the product is, how it fails closed, and what it does not guarantee. |
+| **About** | What the product is, how it fails closed, and what it does not guarantee. |
 
 | Blocked request | Policy explorer |
 |---|---|
@@ -28,34 +30,74 @@ Start the API and open `http://127.0.0.1:8000/`. The same server serves the land
 |---|---|---|
 | ![Results page with the not-measured notice and false-block rates](docs/screenshots/safety.png) | ![Landing page hero with a real recorded trace](docs/screenshots/about.png) | ![Console on a phone-width screen](docs/screenshots/phone-blocked.png) |
 
-### Recorded demo (no backend)
+### Modes: live and recorded demo
 
-`web/demo.html` (or `web/index.html?demo=1`) replays real responses captured from the running service against the mock provider and the local Postgres container. It is labelled **"Recorded demo, not live"** on screen and nothing in it executes. The recording is `web/data/demo.json`, produced by `scripts/capture_demo.py`; it is also what the app falls back to automatically when no API answers. To host it, publish the contents of `web/` on any static host (for a quick look: `python -m http.server` inside `web/`).
+- **Live.** The app talks to the API (`VITE_API_BASE`, or the same origin). The header shows the provider and whether the database is up.
+- **Recorded demo.** The app replays `frontend/public/data/demo.json`: real responses captured from the running service by `scripts/capture_demo.py`. It is labelled **"Recorded demo, not live"** on screen and nothing in it executes.
+- **Auto-detect.** On load the app calls `/health`; if no API answers it falls back to the recorded demo and says so in the banner. `VITE_MODE=demo` forces the demo (this is what GitHub Pages builds); `?demo=1` forces it at runtime.
 
-The front end is plain HTML, CSS and JavaScript with no build step and no dependencies; only the web fonts load from Google Fonts, with system fallbacks.
+Fonts are bundled with the app (`@fontsource`), so it works offline. Every asset and data URL is built from Vite's base path, so the same build works at `/` or under `/text2sql-guard/`.
 
 ## Quick start
 
-Requires Python 3.11+ and Docker (for the PostgreSQL 16 demo database on host port 54329). The default provider is `mock`, a deterministic rule-based generator, so no API key is needed.
+### Full stack with Docker (one port)
+
+Requires Docker. The default provider is `mock`, a deterministic rule-based generator, so no API key is needed.
+
+```
+docker compose up --build        # PostgreSQL 16 + seed + API + the built React app
+# open http://localhost:8000
+```
+
+The `postgres` service keeps its existing name and host port (54329). A one-shot `seed` service loads the synthetic data, then the `api` service starts and serves both the API and `frontend/dist`. All data is synthetic (Faker); the database password is a local dev value. (The Docker files were validated with `docker compose config` but not built or run on the machine that authored them, which was short on disk.)
+
+### Development without Docker for the app
+
+Requires Python 3.11+, Node 20+ and a PostgreSQL 16 demo database (`python scripts\db.py up` starts it with Docker; see `db/README.md`).
 
 ```
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt        # Windows; use .venv/bin/ elsewhere
-docker compose up -d                                  # PostgreSQL 16 (or: python scripts\db.py up, which also seeds)
 .venv\Scripts\python scripts\db.py up                 # waits until the database is usable and seeds it if empty
-.venv\Scripts\python -m uvicorn app.api.main:app      # API + web app at http://127.0.0.1:8000
-.venv\Scripts\python -m pytest -q -p no:cacheprovider
-.venv\Scripts\python -m streamlit run ui\streamlit_app.py   # the original Streamlit demo, optional
-.venv\Scripts\python scripts\reproduce.py             # tests + ablation + figures + RESULTS.md
+.venv\Scripts\python -m uvicorn app.api.main:app      # API on http://127.0.0.1:8000
+
+cd frontend
+npm ci
+npm run dev                                           # http://localhost:5173, auto-detects the API on :8000 via VITE_API_BASE
+npm run typecheck && npm test                         # type check and unit/component tests
+VITE_BASE=/text2sql-guard/ VITE_MODE=demo npm run build   # what GitHub Pages builds -> frontend/dist
+npm run build                                         # default base './'; the API then serves frontend/dist at /
 ```
 
-All data is synthetic (Faker); the database password is a local dev value. Database details are in `db/README.md`. Without Docker the API still starts and serves the app, but queries that need Postgres fail; use the recorded demo instead.
+For `npm run dev` against a local API, copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_API_BASE=http://localhost:8000` (CORS is open to localhost origins only). Without a database the app falls back to the recorded demo.
+
+```
+.venv\Scripts\python -m pytest -q -p no:cacheprovider      # tests that need PostgreSQL skip themselves when it is down
+.venv\Scripts\python -m streamlit run ui\streamlit_app.py   # the original Streamlit demo, optional
+.venv\Scripts\python scripts\reproduce.py                  # tests + ablation + figures + RESULTS.md
+```
 
 Refreshing the web data after a new evaluation run:
 
 ```
-.venv\Scripts\python scripts\build_web_data.py                       # eval/results -> web/data/results.json
-.venv\Scripts\python scripts\capture_demo.py --base http://127.0.0.1:8000   # re-record web/data/demo.json (mock provider only)
+.venv\Scripts\python scripts\build_web_data.py                       # eval/results -> frontend/public/data/results.json
+.venv\Scripts\python scripts\capture_demo.py --base http://127.0.0.1:8000   # re-record frontend/public/data/demo.json (mock provider only)
+```
+
+### Deployment
+
+`.github/workflows/pages.yml` runs on every push to `main`: install, type check, test, build the demo-only site with `VITE_BASE=/text2sql-guard/`, and publish `frontend/dist` to GitHub Pages. `.github/workflows/ci.yml` runs the offline Python suite (no database) plus front-end lint, type check, tests and build.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    B[Browser<br/>React app, HashRouter] -- /query /audit /policy /catalog /health --> A[FastAPI<br/>app/api]
+    A --> P[Guard pipeline<br/>8 stages]
+    P --> D[(PostgreSQL 16<br/>read-only roles, RLS)]
+    A -- serves frontend/dist at / --> B
+    B -. no API: replays .-> J[demo.json<br/>recorded responses]
+    GH[GitHub Pages<br/>static build, demo mode] --> B
 ```
 
 ## How a request flows
@@ -149,7 +191,7 @@ Per-stage latencies are on the results page and in `eval/results/RESULTS.md`. Th
 
 ### Tests
 
-`pytest -q -p no:cacheprovider` on this commit: **1358 passed**, 0 failed (the evaluation snapshot above recorded 1356; two tests were added for the `/catalog` endpoint and the web mount). The suite covers each guard, the pipeline, the API, the harness, the oracle and statistics, plus database tests against PostgreSQL 16 (column grants, read-only roles, statement timeout, RLS by region, function revocations, seed integrity). These tests check rule behaviour on fixed examples; they are not a measured block rate.
+`pytest -q -p no:cacheprovider` on this commit: **1360 passed**, 0 failed with PostgreSQL up (1237 passed and 123 skipped without a database, which is what CI runs) (the evaluation snapshot above recorded 1356; three tests were added for the `/catalog` endpoint, the front-end mount and CORS). The suite covers each guard, the pipeline, the API, the harness, the oracle and statistics, plus database tests against PostgreSQL 16 (column grants, read-only roles, statement timeout, RLS by region, function revocations, seed integrity). These tests check rule behaviour on fixed examples; they are not a measured block rate.
 
 ## Residual risk
 
@@ -170,14 +212,16 @@ This is design analysis, not measurement:
 - **No Spider or BIRD run.** `eval/benchmarks/` is empty, so execution accuracy and the accuracy cost of the guards are unmeasured.
 - **Verifier and self-correction** (silent-wrong-answer rate, precision and recall, retry recovery) were not evaluated.
 - **Postgres-dependent layers did run on real PostgreSQL 16** for the 150 benign queries and the database tests. That shows benign queries work through them and the grants, RLS and timeout behave as tested; it does not show they stop attacks.
-- **Web app:** checked in a real browser at desktop and phone widths and with an automated accessibility audit (no violations reported on the console, About and results pages); not tested on other browsers, and no load testing.
+- **Web app:** checked in one real browser (Chrome) at desktop and phone widths, in light mode, and with an automated accessibility audit (no violations reported on the console, About and results pages); dark mode, other browsers and load were not tested. The Docker images were not built.
 - No API keys are needed or present; there is no `.env` in the repository.
 
 ## Project layout
 
 ```
 app/            pipeline, guards, executor, generation, audit log, FastAPI service (app/api)
-web/            web app, landing page, recorded demo (static, no build step); web/data holds the JSON it reads
+frontend/       React + TypeScript web app (Vite); public/data holds demo.json and results.json
+.github/        workflows: Pages deploy, CI
+Dockerfile      API + built front end image (see docker-compose.yml)
 policies/       policy.yaml, the single source of truth
 db/             schema, seed data, generated grants, Docker init scripts
 eval/           harness, oracle, statistics, ablations, results, benchmarks (empty)
