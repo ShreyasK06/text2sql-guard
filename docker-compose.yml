@@ -1,4 +1,6 @@
-# Local demo database (synthetic data only). Start with: python scripts/db.py up
+# Full stack on one port: `docker compose up --build` starts PostgreSQL, seeds it with synthetic data,
+# and runs the API, which also serves the built React app at http://localhost:8000.
+# Database only (for local development without Docker for the app): python scripts/db.py up
 services:
   postgres:
     image: postgres:16-bookworm
@@ -23,5 +25,32 @@ services:
       retries: 30
       start_period: 5s
 
+  seed:
+    build: .
+    command: ["python", "-m", "db.seed"]
+    environment: &t2s_env
+      T2S_DB_HOST: postgres
+      T2S_DB_PORT: "5432"
+      T2S_LLM_PROVIDER: mock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment: *t2s_env
+    volumes:
+      - t2s_audit:/data/audit
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   t2s_pgdata:
+  t2s_audit:
