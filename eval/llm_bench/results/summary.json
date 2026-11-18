@@ -1,0 +1,260 @@
+{
+  "meta": {
+    "started": "2026-11-18 02:54",
+    "provider": "nvidia",
+    "max_requests": 400,
+    "http_requests": 75,
+    "pipeline_max_retries": 2,
+    "rate_limit_per_min": 30,
+    "model_status": {
+      "nvidia/nemotron-3.5-bolt-e4b": {
+        "model": "nvidia/nemotron-3.5-bolt-e4b",
+        "aborted": null,
+        "unavailable": false,
+        "http_requests": 0,
+        "http_statuses": {}
+      },
+      "google/gemma-4-31b-it": {
+        "model": "google/gemma-4-31b-it",
+        "aborted": null,
+        "unavailable": false,
+        "http_requests": 17,
+        "http_statuses": {
+          "200": 17
+        }
+      },
+      "minimaxai/minimax-m3.1-flash": {
+        "model": "minimaxai/minimax-m3.1-flash",
+        "aborted": null,
+        "unavailable": true,
+        "unavailable_reason": "first 3 requests failed with provider error network",
+        "http_requests": 3,
+        "http_statuses": {}
+      },
+      "mistralai/mistral-large-4-1t-a52b": {
+        "model": "mistralai/mistral-large-4-1t-a52b",
+        "aborted": null,
+        "unavailable": false,
+        "http_requests": 23,
+        "http_statuses": {
+          "200": 8
+        }
+      },
+      "bigcode/starcoder2-15b": {
+        "model": "bigcode/starcoder2-15b",
+        "aborted": null,
+        "unavailable": true,
+        "unavailable_reason": "first 3 requests failed with provider error bad_model",
+        "http_requests": 3,
+        "http_statuses": {
+          "404": 3
+        }
+      }
+    },
+    "aborted": null,
+    "notes": [
+      "- **Gold fix (q10).** The first gold SQL grouped by `p.id, p.name`. Both gemma-4-31b-it and nemotron-3.5-bolt-e4b grouped by `p.name`, which merges products that share a name (the demo catalog has duplicate names). The question says 'which five products ... return product name', so grouping by name is a reasonable reading (and matches the repo's own few-shot example). The gold was changed to `GROUP BY p.name` and the stored model SQL was re-scored without new model calls (`--rescore`). This flipped q10 from wrong to right for both models. It was decided after seeing the model outputs, so treat the 100% figures as optimistic for this reason.",
+      "- **Both top models score 23/23.** With zero failures the bootstrap CI is degenerate ([100%, 100%]); the Wilson interval is shown beside it and is the more honest one. The set is too easy and too small to separate these two models on accuracy.",
+      "- **Guardrail blocks: 0 for every model** on the accuracy items. No false blocks were observed on these 23 questions, which are plain analytics queries; this says nothing about harder SQL.",
+      "- **Policy questions (p01 email, p02 salary):** every model that ran was stopped by the input guard (`input.restricted_data_intent`) before any model call, so these two items test the guard, not the model. No leak.",
+      "- **minimax-m3.1-flash: not benchmarked.** The first 3 requests hit the app client's 60 s timeout (provider error `network`) so the model was skipped. A separate one-off probe with a 150 s timeout showed it answers a trivial 16-token request correctly but only after about 90 s (free-tier queueing), and it returns reasoning text in a separate field.",
+      "- **mistral-large-4-1t-a52b: availability-bound.** 16 of 23 requests exceeded the 60 s client timeout and are counted as errors (not wrong SQL). The 7 that completed were all correct (7/7), so 7/23 mostly reflects free-tier latency (probe: about 92 s for a trivial request), not SQL quality. Do not read 30% as its accuracy.",
+      "- **starcoder2-15b: not a chat model on this endpoint.** `/chat/completions` returned `bad_model` (404) on the first 3 items, so it was skipped. The probe confirmed HTTP 404.",
+      "- **First attempt aborted on a harness bug, then resumed.** The first run's shared client-side limiter (max wait 20 s) raised 'rate_limited' for gemma q07-q09 (0 HTTP requests were sent for those items; the server never returned a 429), which tripped the 3-in-a-row abort. This exercised the abort path for real. The limiter wait was raised to 70 s and the run was resumed with `--resume --retry-errors`; nemotron's finished records were kept."
+    ]
+  },
+  "models": {
+    "bigcode/starcoder2-15b": {
+      "n_items": 3,
+      "n_accuracy_items": 3,
+      "n_policy_items": 0,
+      "execution_accuracy": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "wilson95": [
+        0.0,
+        0.5614970317550454
+      ],
+      "correct": 0,
+      "correct_lenient_columns": 0,
+      "guardrail_blocks": 0,
+      "blocked_ids": [],
+      "errors": 3,
+      "provider_errors": 3,
+      "error_ids": [
+        "q01",
+        "q02",
+        "q03"
+      ],
+      "latency_s_p50": 0.0238,
+      "latency_s_p95": 0.06969999999999998,
+      "avg_retries": 0.0,
+      "tokens_total": null,
+      "policy_outcomes": {},
+      "failed_ids": [
+        "q01",
+        "q02",
+        "q03"
+      ]
+    },
+    "google/gemma-4-31b-it": {
+      "n_items": 25,
+      "n_accuracy_items": 23,
+      "n_policy_items": 2,
+      "execution_accuracy": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "wilson95": [
+        0.8568833815495731,
+        1.0
+      ],
+      "correct": 23,
+      "correct_lenient_columns": 23,
+      "guardrail_blocks": 0,
+      "blocked_ids": [],
+      "errors": 0,
+      "provider_errors": 0,
+      "error_ids": [],
+      "latency_s_p50": 2.2471,
+      "latency_s_p95": 10.209779999999995,
+      "avg_retries": 0.0,
+      "tokens_total": 10135,
+      "policy_outcomes": {
+        "refused_by_guard": 2
+      },
+      "failed_ids": []
+    },
+    "minimaxai/minimax-m3.1-flash": {
+      "n_items": 3,
+      "n_accuracy_items": 3,
+      "n_policy_items": 0,
+      "execution_accuracy": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "wilson95": [
+        0.0,
+        0.5614970317550454
+      ],
+      "correct": 0,
+      "correct_lenient_columns": 0,
+      "guardrail_blocks": 0,
+      "blocked_ids": [],
+      "errors": 3,
+      "provider_errors": 3,
+      "error_ids": [
+        "q01",
+        "q02",
+        "q03"
+      ],
+      "latency_s_p50": 60.0432,
+      "latency_s_p95": 60.0468,
+      "avg_retries": 0.0,
+      "tokens_total": null,
+      "policy_outcomes": {},
+      "failed_ids": [
+        "q01",
+        "q02",
+        "q03"
+      ]
+    },
+    "mistralai/mistral-large-4-1t-a52b": {
+      "n_items": 25,
+      "n_accuracy_items": 23,
+      "n_policy_items": 2,
+      "execution_accuracy": 0.30434782608695654,
+      "ci95": [
+        0.13043478260869565,
+        0.4782608695652174
+      ],
+      "wilson95": [
+        0.15604024453214027,
+        0.508657562687592
+      ],
+      "correct": 7,
+      "correct_lenient_columns": 7,
+      "guardrail_blocks": 0,
+      "blocked_ids": [],
+      "errors": 16,
+      "provider_errors": 16,
+      "error_ids": [
+        "q02",
+        "q03",
+        "q05",
+        "q06",
+        "q07",
+        "q10",
+        "q12",
+        "q13",
+        "q14",
+        "q15",
+        "q17",
+        "q18",
+        "q19",
+        "q20",
+        "q21",
+        "q22"
+      ],
+      "latency_s_p50": 60.0084,
+      "latency_s_p95": 60.11006,
+      "avg_retries": 0.0,
+      "tokens_total": 8417,
+      "policy_outcomes": {
+        "refused_by_guard": 2
+      },
+      "failed_ids": [
+        "q02",
+        "q03",
+        "q05",
+        "q06",
+        "q07",
+        "q10",
+        "q12",
+        "q13",
+        "q14",
+        "q15",
+        "q17",
+        "q18",
+        "q19",
+        "q20",
+        "q21",
+        "q22"
+      ]
+    },
+    "nvidia/nemotron-3.5-bolt-e4b": {
+      "n_items": 25,
+      "n_accuracy_items": 23,
+      "n_policy_items": 2,
+      "execution_accuracy": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "wilson95": [
+        0.8568833815495731,
+        1.0
+      ],
+      "correct": 23,
+      "correct_lenient_columns": 23,
+      "guardrail_blocks": 0,
+      "blocked_ids": [],
+      "errors": 0,
+      "provider_errors": 0,
+      "error_ids": [],
+      "latency_s_p50": 0.7425,
+      "latency_s_p95": 1.3800799999999986,
+      "avg_retries": 0.0,
+      "tokens_total": 9896,
+      "policy_outcomes": {
+        "refused_by_guard": 2
+      },
+      "failed_ids": []
+    }
+  },
+  "failed_by_all_models": []
+}

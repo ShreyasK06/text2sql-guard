@@ -2,13 +2,13 @@
 
 [![Query console showing an allowed request (revenue by region, as an analyst) with the eight-stage trace and the result table](docs/screenshots/console-allowed.png)](https://shreyask06.github.io/text2sql-guard/)
 
-![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1360 passed](https://img.shields.io/badge/tests-1402%20passed-brightgreen) ![live LLM not validated](https://img.shields.io/badge/live%20LLM-not%20validated-lightgrey)
+![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1360 passed](https://img.shields.io/badge/tests-1402%20passed-brightgreen) ![live LLM small dev-set only](https://img.shields.io/badge/live%20LLM-small%20dev%20set%20only-yellow)
 
 **text2sql-guard is a text-to-SQL service for PostgreSQL that treats the language model as untrusted.** A question (or raw SQL) is turned into a query and then passes eight stages, six of which can refuse it, before a read-only database user returns rows that are masked and scoped to the caller's role. Every refusal carries a rule id and a plain-language reason, every request is logged, and the whole policy lives in one file that also generates the database grants. It ships with a React web app (query console, audit log, policy explorer, results page, about page) and a recorded demo that runs without a backend.
 
 **Live demo:** <https://shreyask06.github.io/text2sql-guard/>. This is the *recorded* demo, not a live service: GitHub Pages hosts only the static front end, which replays real responses captured earlier from the running API (mock provider, local Postgres). Nothing you click there is executed.
 
-What it does **not** have, stated up front: no attack block rate was measured (the evaluation contains zero attack items), no live LLM output has been validated through it (an NVIDIA-hosted option is wired up and unit-tested but was never called, see [below](#using-a-free-nvidia-hosted-model)), and there is no authentication. See [Not validated](#not-validated).
+What it does **not** have, stated up front: no attack block rate was measured (the evaluation contains zero attack items), live LLM generation was checked only on a small 23-question dev set (see [Model benchmark](#model-benchmark)), and there is no authentication. See [Not validated](#not-validated).
 
 ## The web app
 
@@ -152,7 +152,28 @@ Honest notes:
 - **Rate limits and terms.** The free tier is shared and rate limited (roughly tens of requests per minute) and is described by NVIDIA as being for development and testing. Verify the current terms and limits on build.nvidia.com before relying on it.
 - **Your data goes to NVIDIA.** Each question and the role-visible schema (only the tables and columns that role may see, never hidden ones) are sent to the provider; the optional self-check also sends the generated SQL. Query results are not sent. Do not point it at data you may not share. Few-shot examples are built from the role-visible schema only.
 - **Model output is untrusted.** It goes through the same guard pipeline as any other SQL, unchanged. SQL quality of open models varies; expect refusals, wrong answers and self-correction retries.
-- **Not validated live.** No key was available when this was built. The provider, retries, extraction and the `/llm/*` endpoints are tested only against `httpx.MockTransport` fakes. Real generation has not been run in this repo until `scripts/llm_smoke.py` is run with a key; model ids and response quirks of the live service are unverified.
+- **Validated live only on a small set.** The provider, retries and extraction are unit-tested against `httpx.MockTransport` fakes and were also run against the live service for the [Model benchmark](#model-benchmark) (23 scored questions, one synthetic schema). That is a small dev-set check, not a general accuracy claim. The documented default model is `nvidia/nemotron-3.5-bolt-e4b`; the code still resolves model ids from the live list and does not hard-code it.
+
+## Model benchmark
+
+A small, honest check of SQL generation through the full guard pipeline (all guards on), run on 2026-11-18 against the free NVIDIA tier. Code and data: `eval/llm_bench/` (`questions.jsonl`, `run.py`, `results/`); full write-up in `eval/llm_bench/results/RESULTS.md`. Scoring is execution accuracy: the pipeline's masked, row-capped result for the model's SQL must equal the result of hand-written gold SQL run through the same pipeline (multiset; row order only where asked).
+
+| model (id from the live `/models` list) | exec. accuracy, 23 questions | 95% Wilson CI | guardrail blocks | latency p50 / p95 |
+|---|---|---|---|---|
+| `nvidia/nemotron-3.5-bolt-e4b` | 23/23 | [85.7%, 100%] | 0 | 0.7 s / 1.4 s |
+| `google/gemma-4-31b-it` | 23/23 | [85.7%, 100%] | 0 | 2.2 s / 10.2 s |
+| `mistralai/mistral-large-4-1t-a52b` | 7/7 completed, 16 of 23 timed out at 60 s | n/a | 0 | not usable on the free tier at the time |
+| `minimaxai/minimax-m3.1-flash` | not benchmarked: timed out (probe: about 90 s per trivial request) | n/a | n/a | n/a |
+| `bigcode/starcoder2-15b` | not benchmarked: no chat endpoint (HTTP 404) | n/a | n/a | n/a |
+
+Selected default: `NVIDIA_MODEL=nvidia/nemotron-3.5-bolt-e4b` (tied on accuracy with gemma, about 3x lower median latency). The two policy questions (email and salary as an analyst) were refused by the input guard before any model call for every model, so they test the guard, not the model.
+
+Caveats, read these before quoting any number:
+
+- **Small dev set.** n = 23 scored questions written by the repo author, easy to hard, one schema. A 23/23 result still has a Wilson interval that reaches down to about 86%, and it cannot separate the top two models. The models were not tuned on the set, but the questions were not hidden from whoever wrote the prompt.
+- **One gold SQL was changed after seeing model output** (q10: group by product name instead of id; both models' reading was reasonable). That favours the two top models slightly. It is documented in `RESULTS.md`.
+- **Latency and timeouts depend on free-tier load** and will vary run to run; each model was run once at temperature 0. The 60 s client timeout, not SQL quality, is what excluded the two slow models.
+- Not a Spider/BIRD result, and not an attack test.
 
 ## Role and policy model
 
@@ -226,9 +247,9 @@ This is design analysis, not measurement:
 
 ## Not validated
 
-- **No live LLM.** Only the deterministic `mock` provider was run, including for the web app and the recorded demo. The NVIDIA / OpenAI-compatible, Anthropic and Gemini providers are unit-tested against fake HTTP transports (`httpx.MockTransport`), but no API key was used and no real model output was ever passed through the guards. Live NVIDIA generation, its default-model heuristic, the free-tier rate-limit behaviour and the accuracy of open-model SQL are all unverified until `scripts/llm_smoke.py` is run with a key (see [Using a free NVIDIA-hosted model](#using-a-free-nvidia-hosted-model)). The self-check shows "not verified" under the mock provider.
-- **No attack evaluation.** No adversarial items exist. No block rate, interval, per-category or per-layer attack ablation.
-- **No Spider or BIRD run.** `eval/benchmarks/` is empty, so execution accuracy and the accuracy cost of the guards are unmeasured.
+- **Live LLM: validated only on a small dev set.** Live NVIDIA generation through the guards was run on 23 scored questions plus 2 policy questions for the models in the [Model benchmark](#model-benchmark) (two models completed, two were too slow on the free tier, one has no chat endpoint). Still not validated: the Anthropic and Gemini providers (fake transports only), the app's default-model keyword heuristic, larger or harder question sets, the optional self-check with a real model, and behaviour under sustained rate limiting. The web app and the recorded demo still use the `mock` provider.
+- **No attack evaluation.** No adversarial items exist, including for live models: the benchmark above uses plain analytics questions only. No attack block rate, interval, per-category or per-layer attack ablation.
+- **No Spider or BIRD run.** `eval/benchmarks/` is empty, so execution accuracy on public benchmarks and the accuracy cost of the guards (guards on versus off) are unmeasured; the only accuracy number is the 23-question dev set above.
 - **Verifier and self-correction** (silent-wrong-answer rate, precision and recall, retry recovery) were not evaluated.
 - **Postgres-dependent layers did run on real PostgreSQL 16** for the 150 benign queries and the database tests. That shows benign queries work through them and the grants, RLS and timeout behave as tested; it does not show they stop attacks.
 - **Web app:** checked in one real browser (Chrome) at desktop and phone widths, in light mode, and with an automated accessibility audit (no violations reported on the console, About and results pages); dark mode, other browsers and load were not tested. The Docker images were not built.
@@ -243,7 +264,7 @@ frontend/       React + TypeScript web app (Vite); public/data holds demo.json a
 Dockerfile      API + built front end image (see docker-compose.yml)
 policies/       policy.yaml, the single source of truth
 db/             schema, seed data, generated grants, Docker init scripts
-eval/           harness, oracle, statistics, ablations, results, benchmarks (empty)
+eval/           harness, oracle, statistics, ablations, results, llm_bench (live model benchmark), benchmarks (empty)
 scripts/        db.py, reproduce.py, build_web_data.py, capture_demo.py, llm_smoke.py (live LLM check, needs a key)
 tests/          offline and database tests
 ui/             Streamlit demo
