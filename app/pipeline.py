@@ -259,7 +259,7 @@ def build_pipeline(settings=None, *, with_audit: bool = True) -> Pipeline:
     # The self-check doubles the LLM calls per question; on the shared free tier it is opt-in.
     default_check = "0" if settings.llm_provider in {"nvidia", "openai_compatible"} else "1"
     return Pipeline(
-        self_check_enabled=os.environ.get("LLM_SELF_CHECK", default_check) == "1",
+        self_check_enabled=(os.environ.get("LLM_SELF_CHECK") or default_check) == "1",
         policy=policy,
         executor=PostgresExecutor(settings, policy.limits),
         provider=get_provider(settings),
