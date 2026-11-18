@@ -30,6 +30,7 @@ eval/results/raw/
 .swarm/
 
 # front end
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.env

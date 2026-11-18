@@ -1,6 +1,11 @@
 """Shared fixtures. DB-backed tests are marked `db` and skipped when PostgreSQL is unreachable."""
 from __future__ import annotations
 
+import os
+
+# Tests must never read a developer's real .env (it may hold a live provider and key).
+os.environ.setdefault("T2S_NO_DOTENV", "1")
+
 import pytest
 
 from app.config import get_settings

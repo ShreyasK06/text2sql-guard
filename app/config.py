@@ -12,6 +12,39 @@ DEFAULT_POLICY_PATH = REPO_ROOT / "policies" / "policy.yaml"
 _DEV_PASSWORD = "t2s_local_dev_only"
 
 
+def load_dotenv(path: Path | str | None = None) -> list[str]:
+    """Load KEY=VALUE lines from a `.env` file into os.environ and return the names set.
+
+    Real environment variables always win; this only fills in names that are not
+    already set. Blank lines and `#` comments are skipped, an optional `export `
+    prefix is accepted and matching surrounding quotes are stripped. Values are never
+    logged or returned. Set T2S_NO_DOTENV=1 to disable (the test suite does).
+    """
+    if os.environ.get("T2S_NO_DOTENV"):
+        return []
+    env_path = Path(path) if path is not None else REPO_ROOT / ".env"
+    try:
+        text = env_path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    loaded: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        name, _, value = line.partition("=")
+        name, value = name.strip(), value.strip()
+        if not name or name in os.environ:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ[name] = value
+        loaded.append(name)
+    return loaded
+
+
 @dataclass(frozen=True)
 class Settings:
     db_host: str

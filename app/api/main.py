@@ -22,7 +22,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.schemas import CatalogResponse, HealthResponse, PolicyResponse, QueryRequest, QueryResponse
+from app.config import load_dotenv
 from app.types import GuardConfig, PipelineResult
+
+# Pick up a local `.env` (LLM provider, key, model) so `uvicorn app.api.main:app` just works.
+# Real environment variables take precedence; the tests disable this with T2S_NO_DOTENV=1.
+load_dotenv()
 
 app = FastAPI(title="text2sql-guard", version="0.1.0")
 

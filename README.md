@@ -2,7 +2,7 @@
 
 [![Query console showing an allowed request (revenue by region, as an analyst) with the eight-stage trace and the result table](docs/screenshots/console-allowed.png)](https://shreyask06.github.io/text2sql-guard/)
 
-![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1360 passed](https://img.shields.io/badge/tests-1402%20passed-brightgreen) ![live LLM small dev-set only](https://img.shields.io/badge/live%20LLM-small%20dev%20set%20only-yellow)
+![python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![license MIT](https://img.shields.io/badge/license-MIT-green) ![tests 1430 passed](https://img.shields.io/badge/tests-1430%20passed-brightgreen) ![live LLM small dev-set only](https://img.shields.io/badge/live%20LLM-small%20dev%20set%20only-yellow)
 
 **text2sql-guard is a text-to-SQL service for PostgreSQL that treats the language model as untrusted.** A question (or raw SQL) is turned into a query and then passes eight stages, six of which can refuse it, before a read-only database user returns rows that are masked and scoped to the caller's role. Every refusal carries a rule id and a plain-language reason, every request is logged, and the whole policy lives in one file that also generates the database grants. It ships with a React web app (query console, audit log, policy explorer, results page, about page) and a recorded demo that runs without a backend.
 
@@ -59,7 +59,7 @@ Requires Python 3.11+, Node 20+ and a PostgreSQL 16 demo database (`python scrip
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt        # Windows; use .venv/bin/ elsewhere
 .venv\Scripts\python scripts\db.py up                 # waits until the database is usable and seeds it if empty
-.venv\Scripts\python -m uvicorn app.api.main:app      # API on http://127.0.0.1:8000
+.venv\Scripts\python -m uvicorn app.api.main:app      # API on http://127.0.0.1:8000 (reads a local .env if present)
 
 cd frontend
 npm ci
@@ -231,7 +231,7 @@ Per-stage latencies are on the results page and in `eval/results/RESULTS.md`. Th
 
 ### Tests
 
-`pytest -q -p no:cacheprovider` on this commit: **1402 passed**, 0 failed with PostgreSQL up (1237 passed and 123 skipped without a database, which is what CI runs) (the evaluation snapshot above recorded 1356; three tests were added for the `/catalog` endpoint, the front-end mount and CORS). The suite covers each guard, the pipeline, the API, the harness, the oracle and statistics, plus database tests against PostgreSQL 16 (column grants, read-only roles, statement timeout, RLS by region, function revocations, seed integrity). These tests check rule behaviour on fixed examples; they are not a measured block rate.
+`pytest -q -p no:cacheprovider` on this commit: **1430 passed**, 0 failed with PostgreSQL up (the database-backed tests are skipped without a database, which is what CI runs) (the evaluation snapshot above recorded 1356; three tests were added for the `/catalog` endpoint, the front-end mount and CORS). The suite covers each guard, the pipeline, the API, the harness, the oracle and statistics, plus database tests against PostgreSQL 16 (column grants, read-only roles, statement timeout, RLS by region, function revocations, seed integrity). These tests check rule behaviour on fixed examples; they are not a measured block rate.
 
 ## Residual risk
 
